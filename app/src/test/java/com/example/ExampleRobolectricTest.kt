@@ -7,6 +7,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.onFirst
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.performClick
+import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.test.core.app.ApplicationProvider
@@ -30,7 +31,7 @@ class ExampleRobolectricTest {
   }
 
   @Test
-  fun createProjectAndNavigateAcrossIdeScreens() {
+  fun createProjectAndNavigateAcrossAllIdeAndUpgradeScreens() {
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("nav_projects").performClick()
     composeRule.waitForIdle()
@@ -51,8 +52,9 @@ class ExampleRobolectricTest {
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("run_build_btn").assertIsDisplayed()
 
-    composeRule.onNodeWithTag("topbar_sdk_btn").performClick()
+    composeRule.onNodeWithTag("topbar_protection_btn").performClick()
     composeRule.waitForIdle()
+    composeRule.onNodeWithTag("open_mapping_vault_btn").assertIsDisplayed()
 
     composeRule.onNodeWithTag("nav_terminal").performClick()
     composeRule.waitForIdle()
@@ -62,8 +64,37 @@ class ExampleRobolectricTest {
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("ai_prompt_input").assertIsDisplayed()
 
+    // Navigate via Drawer to AI Providers, Model Selector, MCP Manager, Mapping Vault, Build History, SDK, Import
+    navigateViaDrawer("drawer_ai_providers")
+    composeRule.onNodeWithTag("add_ai_provider_btn").assertIsDisplayed()
+
+    navigateViaDrawer("drawer_model_selector")
+    composeRule.onNodeWithTag("add_manual_model_btn").assertIsDisplayed()
+
+    navigateViaDrawer("drawer_mcp_manager")
+    composeRule.onNodeWithTag("add_mcp_server_btn").assertIsDisplayed()
+
+    navigateViaDrawer("drawer_mapping_vault")
+    composeRule.waitForIdle()
+
+    navigateViaDrawer("drawer_build_history")
+    composeRule.waitForIdle()
+
+    navigateViaDrawer("drawer_project_import")
+    composeRule.onNodeWithTag("project_import_zip_btn").assertIsDisplayed()
+
+    navigateViaDrawer("drawer_sdk_manager")
+    composeRule.waitForIdle()
+
     composeRule.onNodeWithTag("topbar_settings_btn").performClick()
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("settings_dark_theme_switch").assertIsDisplayed()
+  }
+
+  private fun navigateViaDrawer(drawerItemTag: String) {
+    composeRule.onNodeWithTag("open_drawer_btn").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag(drawerItemTag).performScrollTo().performClick()
+    composeRule.waitForIdle()
   }
 }
