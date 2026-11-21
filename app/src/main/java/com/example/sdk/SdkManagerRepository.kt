@@ -56,6 +56,7 @@ class SdkManagerRepository(
           installedVersion = entity?.version,
           installPath = entity?.installPath,
           installedSizeBytes = entity?.sizeBytes ?: 0L,
+          recordedSha256 = entity?.sha256,
           isSystemDetected = sysBinary != null,
           systemBinaryPath = sysBinary?.absolutePath,
           isExecutableOnDevice = (sysBinary != null && sysBinary.canExecute()) || localExecutable,
@@ -70,6 +71,28 @@ class SdkManagerRepository(
       }
     }
   }
+
+  fun calculateTotalSdkStorageBytes(): Long =
+    if (!sdksRoot.exists()) 0L
+    else sdksRoot.walkTopDown().filter { it.isFile }.sumOf { it.length() }
+
+  suspend fun checkRemotePackageReachability(spec: SdkPackageSpec): Result<String> =
+    withContext(dispatchers.io) {
+      if (!deviceInfoProvider.isNetworkConnected()) {
+        return@withContext Result.failure(IllegalStateException("Offline: cannot check remote updates for ${spec.displayName}."))
+      }
+      runCatching {
+        val req = Request.Builder().url(spec.downloadUrl).head().build()
+        okHttpClient.newCall(req).execute().use { resp ->
+          if (!resp.isSuccessful && resp.code != 405 && resp.code != 302) {
+            throw IllegalStateException("HTTP ${resp.code}: ${resp.message}")
+          }
+          val len = resp.header("Content-Length")?.toLongOrNull()
+          val etag = resp.header("ETag").orEmpty().take(18)
+          "Reachable (HTTP ${resp.code}${if (len != null) ", ${len / (1024 * 1024)} MB" else ""}${if (etag.isNotBlank()) ", ETag $etag" else ""})"
+        }
+      }
+    }
 
   fun findExecutableOnDevice(binaryName: String, customToolchainPath: String = ""): File? {
     val searchDirs = mutableListOf<String>()

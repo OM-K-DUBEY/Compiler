@@ -95,9 +95,16 @@ class ZipArchiveManager(
     withContext(dispatchers.io) {
       var writtenFiles = 0
       ZipOutputStream(BufferedOutputStream(outputStream)).use { zos ->
+        val rootPrefix = projectRoot.canonicalPath.trimEnd(File.separatorChar)
         val files =
           projectRoot.walkTopDown()
-            .filter { it.isFile && !it.path.contains("${File.separator}build${File.separator}") }
+            .filter { file ->
+              if (!file.isFile) return@filter false
+              val rel = file.canonicalPath.removePrefix(rootPrefix).trimStart(File.separatorChar)
+              !rel.startsWith("build${File.separator}") &&
+                !rel.contains("${File.separator}build${File.separator}") &&
+                !rel.startsWith(".devforge_")
+            }
             .toList()
         val buffer = ByteArray(8192)
         for (file in files) {

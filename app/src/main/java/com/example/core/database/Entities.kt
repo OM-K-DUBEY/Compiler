@@ -46,6 +46,8 @@ data class AiMessageEntity(
   val hasAgentPlan: Boolean,
   val planJson: String?,
   val timestampMillis: Long,
+  val providerId: String = "",
+  val conversationId: String = "default",
 )
 
 @Entity(tableName = "checkpoints")
@@ -82,4 +84,118 @@ data class SdkInstallEntity(
   val sha256: String,
   val isExecutableOnDevice: Boolean,
   val installedAtMillis: Long,
+)
+
+@Entity(tableName = "ai_providers")
+data class AiProviderEntity(
+  @PrimaryKey val id: String,
+  val displayName: String,
+  val providerType: String,
+  val baseUrl: String,
+  val encryptedApiKey: String,
+  val apiVersion: String,
+  val authMethod: String,
+  val customAuthHeaderName: String,
+  val defaultModelId: String,
+  val requestTimeoutSeconds: Int,
+  val maxOutputTokens: Int,
+  val customHeadersJson: String,
+  val customConfigJson: String,
+  val supportsStreaming: Boolean,
+  val isEnabled: Boolean,
+  val lastConnectionStatus: String,
+  val lastConnectionMessage: String,
+  val lastTestedAtMillis: Long,
+  val createdAtMillis: Long,
+  val updatedAtMillis: Long,
+)
+
+@Entity(tableName = "ai_models")
+data class AiModelEntity(
+  @PrimaryKey val compositeId: String,
+  val providerId: String,
+  val modelId: String,
+  val displayName: String,
+  val contextWindow: Int?,
+  val maxOutputTokens: Int?,
+  val inputModalities: String,
+  val outputModalities: String,
+  val supportsVision: String,
+  val supportsToolCalling: String,
+  val supportsStreaming: String,
+  val availabilityStatus: String,
+  val isManual: Boolean,
+  val lastVerifiedAtMillis: Long,
+  val updatedAtMillis: Long,
+)
+
+@Entity(tableName = "mcp_servers")
+data class McpServerEntity(
+  @PrimaryKey val id: String,
+  val displayName: String,
+  val endpointUrl: String,
+  val transportType: String,
+  val authType: String,
+  val encryptedToken: String,
+  val customHeadersJson: String,
+  val timeoutSeconds: Int,
+  val isEnabled: Boolean,
+  val allowedToolsJson: String,
+  val allowAllTools: Boolean,
+  val negotiatedProtocolVersion: String,
+  val serverCapabilitiesJson: String,
+  val connectionStatus: String,
+  val lastError: String,
+  val lastConnectedAtMillis: Long,
+  val updatedAtMillis: Long,
+)
+
+@Entity(tableName = "mcp_audit_logs")
+data class McpAuditLogEntity(
+  @PrimaryKey(autoGenerate = true) val id: Long = 0,
+  val serverId: String,
+  val serverName: String,
+  val eventType: String,
+  val toolName: String,
+  val details: String,
+  val approvedByUser: Boolean,
+  val timestampMillis: Long,
+)
+
+@Entity(tableName = "protection_profiles")
+data class ProtectionProfileEntity(
+  @PrimaryKey val projectId: String,
+  val profileMode: String,
+  val customConfigJson: String,
+  val proguardKeepRules: String,
+  val updatedAtMillis: Long,
+)
+
+@Entity(tableName = "mapping_vault")
+data class MappingVaultEntity(
+  @PrimaryKey val id: String,
+  val projectId: String,
+  val buildId: Long,
+  val versionName: String,
+  val applicationId: String,
+  val toolName: String,
+  val toolVersion: String,
+  val buildVariant: String,
+  val artifactType: String,
+  val originalFileName: String,
+  val encryptedArchivePath: String,
+  val sha256: String,
+  val sizeBytes: Long,
+  val createdAtMillis: Long,
+)
+
+@Entity(tableName = "build_protection_reports")
+data class BuildProtectionReportEntity(
+  @PrimaryKey(autoGenerate = true) val id: Long = 0,
+  val buildId: Long,
+  val projectId: String,
+  val profileMode: String,
+  val detectedFrameworks: String,
+  val reportJson: String,
+  val createdAtMillis: Long,
 )

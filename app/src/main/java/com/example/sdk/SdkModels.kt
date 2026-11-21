@@ -28,6 +28,7 @@ data class SdkPackageUiState(
   val installedVersion: String? = null,
   val installPath: String? = null,
   val installedSizeBytes: Long = 0L,
+  val recordedSha256: String? = null,
   val isSystemDetected: Boolean = false,
   val systemBinaryPath: String? = null,
   val isExecutableOnDevice: Boolean = false,

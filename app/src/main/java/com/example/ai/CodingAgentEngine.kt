@@ -6,6 +6,9 @@ import com.example.core.database.CheckpointEntity
 import com.example.core.database.ProjectEntity
 import com.example.core.security.PathSandbox
 import com.example.core.storage.ProjectWorkspaceManager
+import com.example.editor.CodeDiagnostic
+import com.example.editor.DiagnosticSeverity
+import com.example.editor.DiagnosticsEngine
 import com.example.editor.DiffEngine
 import com.example.editor.DiffLine
 import java.io.File
@@ -18,7 +21,17 @@ data class PatchPreview(
   val patch: FilePatch,
   val currentContent: String,
   val diffLines: List<DiffLine>,
+  val unifiedDiff: String = "",
 )
+
+data class AppliedPatchOutcome(
+  val checkpoint: CheckpointEntity,
+  val appliedCount: Int,
+  val postApplyDiagnostics: List<CodeDiagnostic>,
+) {
+  val errorCount: Int get() = postApplyDiagnostics.count { it.severity == DiagnosticSeverity.ERROR }
+  val warningCount: Int get() = postApplyDiagnostics.count { it.severity == DiagnosticSeverity.WARNING }
+}
 
 class CodingAgentEngine(
   private val workspaceManager: ProjectWorkspaceManager,
@@ -86,6 +99,7 @@ class CodingAgentEngine(
           patch = patch,
           currentContent = existing,
           diffLines = DiffEngine.computeDiff(existing, updated),
+          unifiedDiff = DiffEngine.formatUnifiedDiff(patch.relativePath, existing, updated),
         )
       }
     }
@@ -93,15 +107,29 @@ class CodingAgentEngine(
   suspend fun applyPlanWithCheckpoint(
     project: ProjectEntity,
     plan: AgentPlan,
+    selectedRelativePaths: Set<String>? = null,
   ): CheckpointEntity =
+    applyPlanWithDiagnostics(project, plan, selectedRelativePaths).checkpoint
+
+  suspend fun applyPlanWithDiagnostics(
+    project: ProjectEntity,
+    plan: AgentPlan,
+    selectedRelativePaths: Set<String>? = null,
+  ): AppliedPatchOutcome =
     withContext(dispatchers.io) {
+      val patchesToApply =
+        if (selectedRelativePaths == null) plan.patches
+        else plan.patches.filter { it.relativePath in selectedRelativePaths }
+
+      require(patchesToApply.isNotEmpty()) { "No files selected to apply." }
+
       val root = File(project.rootPath)
       val checkpointId = UUID.randomUUID().toString()
       val snapshotDir = File(root, ".devforge_checkpoints/$checkpointId").apply { mkdirs() }
       val metaArr = JSONArray()
 
       // Snapshot existing state before mutating
-      for (patch in plan.patches) {
+      for (patch in patchesToApply) {
         val target = PathSandbox.resolveSafe(root, patch.relativePath)
         val existed = target.exists() && target.isFile
         if (existed) {
@@ -120,7 +148,7 @@ class CodingAgentEngine(
         CheckpointEntity(
           id = checkpointId,
           projectId = project.id,
-          description = plan.summary.ifBlank { "AI Agent patch (${plan.patches.size} files)" },
+          description = plan.summary.ifBlank { "AI Agent patch (${patchesToApply.size} files)" },
           snapshotDirPath = snapshotDir.absolutePath,
           affectedFilesJson = metaArr.toString(),
           createdAtMillis = System.currentTimeMillis(),
@@ -129,10 +157,12 @@ class CodingAgentEngine(
       checkpointDao.upsert(checkpoint)
 
       // Apply validated patches
-      for (patch in plan.patches) {
+      val postDiags = mutableListOf<CodeDiagnostic>()
+      for (patch in patchesToApply) {
         when (patch.operation) {
           PatchOperation.CREATE, PatchOperation.MODIFY -> {
             workspaceManager.writeFileText(root, patch.relativePath, patch.newContent)
+            postDiags += DiagnosticsEngine.analyze(patch.relativePath, patch.newContent)
           }
           PatchOperation.DELETE -> {
             workspaceManager.deleteEntry(root, patch.relativePath)
@@ -140,7 +170,7 @@ class CodingAgentEngine(
         }
       }
       workspaceManager.refreshMetadata(project.id)
-      checkpoint
+      AppliedPatchOutcome(checkpoint, patchesToApply.size, postDiags)
     }
 
   suspend fun rollbackCheckpoint(project: ProjectEntity, checkpointId: String): Boolean =

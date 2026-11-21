@@ -68,4 +68,19 @@ object DiffEngine {
     }
     return out
   }
+
+  fun formatUnifiedDiff(path: String, original: String, updated: String): String {
+    val diff = computeDiff(original, updated)
+    val sb = StringBuilder()
+    sb.appendLine("--- a/$path")
+    sb.appendLine("+++ b/$path")
+    for (line in diff) {
+      when (line.type) {
+        DiffLineType.CONTEXT -> sb.appendLine(" ${line.text}")
+        DiffLineType.REMOVED -> sb.appendLine("-${line.text}")
+        DiffLineType.ADDED -> sb.appendLine("+${line.text}")
+      }
+    }
+    return sb.toString().trimEnd()
+  }
 }
