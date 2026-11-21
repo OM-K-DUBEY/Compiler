@@ -22,7 +22,6 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -32,7 +31,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
-import com.example.core.preferences.AiMode
 import com.example.core.preferences.IdePreferences
 import com.example.core.preferences.OnlineProviderType
 import com.example.core.security.SigningKeyInfo
@@ -48,11 +46,9 @@ fun SettingsScreen(
   signingKeyInfo: SigningKeyInfo?,
   onSetDarkTheme: (Boolean) -> Unit,
   onSaveEditorSettings: (Int, Int, Boolean, Boolean) -> Unit,
-  onSetAiMode: (AiMode) -> Unit,
   onSaveOnlineConfig: (OnlineProviderType, String, String, String?) -> Unit,
   onClearApiKey: () -> Unit,
   onSetAllowCodeUpload: (Boolean) -> Unit,
-  onSaveOfflineConfig: (String?, Int, Float, Int) -> Unit,
   onSaveCustomToolchainPath: (String) -> Unit,
   onEnsureSigningKey: () -> Unit,
 ) {
@@ -68,10 +64,6 @@ fun SettingsScreen(
   var endpointUrl by remember(preferences.customEndpointUrl) { mutableStateOf(preferences.customEndpointUrl) }
   var apiKeyInput by remember { mutableStateOf("") }
   var keySavedNotice by remember { mutableStateOf<String?>(null) }
-
-  var offlineCtx by remember(preferences.offlineContextSize) { mutableIntStateOf(preferences.offlineContextSize) }
-  var offlineTemp by remember(preferences.offlineTemperature) { mutableFloatStateOf(preferences.offlineTemperature) }
-  var offlineThreads by remember(preferences.offlineThreads) { mutableIntStateOf(preferences.offlineThreads) }
 
   var toolchainPath by remember(preferences.customToolchainPath) { mutableStateOf(preferences.customToolchainPath) }
 
@@ -131,20 +123,7 @@ fun SettingsScreen(
 
     item {
       IdePanel(modifier = Modifier.fillMaxWidth()) {
-        IdeSectionHeader(title = "UNIFIED AI ENGINE & ENCRYPTED KEYSTORE")
-        Spacer(Modifier.height(8.dp))
-        Text("Provider Routing Mode", style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(4.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-          AiMode.entries.forEach { mode ->
-            FilterChip(
-              selected = preferences.aiMode == mode,
-              onClick = { onSetAiMode(mode) },
-              label = { Text(mode.name) },
-            )
-          }
-        }
-
+        IdeSectionHeader(title = "ONLINE AI ENGINE & ENCRYPTED KEYSTORE")
         Spacer(Modifier.height(8.dp))
         Text("Online Provider", style = MaterialTheme.typography.labelMedium)
         Spacer(Modifier.height(4.dp))
@@ -232,26 +211,6 @@ fun SettingsScreen(
         ) {
           Text("Allow sending project files to Online AI", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
           Switch(checked = preferences.allowUploadingProjectFilesToOnlineAi, onCheckedChange = onSetAllowCodeUpload)
-        }
-      }
-    }
-
-    item {
-      IdePanel(modifier = Modifier.fillMaxWidth()) {
-        IdeSectionHeader(title = "OFFLINE INFERENCE PARAMETERS")
-        Spacer(Modifier.height(6.dp))
-        Text(
-          "Selected GGUF: ${preferences.selectedOfflineModelPath?.substringAfterLast('/') ?: "None"}",
-          style = MaterialTheme.typography.bodySmall,
-        )
-        Text("Context Window: $offlineCtx tokens", style = MaterialTheme.typography.labelMedium)
-        Slider(value = offlineCtx.toFloat(), onValueChange = { offlineCtx = it.toInt() }, valueRange = 1024f..16384f)
-        Text("Temperature: ${String.format("%.2f", offlineTemp)}", style = MaterialTheme.typography.labelMedium)
-        Slider(value = offlineTemp, onValueChange = { offlineTemp = it }, valueRange = 0f..1.5f)
-        Text("CPU Threads: $offlineThreads", style = MaterialTheme.typography.labelMedium)
-        Slider(value = offlineThreads.toFloat(), onValueChange = { offlineThreads = it.toInt() }, valueRange = 1f..8f)
-        Button(onClick = { onSaveOfflineConfig(preferences.selectedOfflineModelPath, offlineCtx, offlineTemp, offlineThreads) }) {
-          Text("Save Offline Parameters")
         }
       }
     }

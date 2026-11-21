@@ -2,7 +2,6 @@ package com.example.di
 
 import android.content.Context
 import com.example.ai.CodingAgentEngine
-import com.example.ai.OfflineAiManager
 import com.example.ai.OnlineAiClient
 import com.example.ai.ProjectContextManager
 import com.example.compiler.BuildManager
@@ -71,7 +70,6 @@ class AppContainer(context: Context) {
     )
 
   val onlineAiClient = OnlineAiClient(okHttpClient, dispatchers)
-  val offlineAiManager = OfflineAiManager(appContext, okHttpClient, deviceInfoProvider, dispatchers)
   val projectContextManager = ProjectContextManager(workspaceManager)
   val codingAgentEngine =
     CodingAgentEngine(

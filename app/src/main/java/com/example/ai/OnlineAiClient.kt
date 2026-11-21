@@ -53,7 +53,7 @@ class OnlineAiClient(
         try {
           when (provider) {
             OnlineProviderType.GEMINI -> buildGeminiRequest(cleanBase, modelId, apiKey, systemPrompt, history)
-            OnlineProviderType.OPENAI, OnlineProviderType.CUSTOM_OPENAI ->
+            OnlineProviderType.OPENAI, OnlineProviderType.CUSTOM_OPENAI, OnlineProviderType.CUSTOM_ADAPTER ->
               buildOpenAiRequest(cleanBase, modelId, apiKey, systemPrompt, history)
             OnlineProviderType.ANTHROPIC -> buildAnthropicRequest(cleanBase, modelId, apiKey, systemPrompt, history)
           }
@@ -229,7 +229,7 @@ class OnlineAiClient(
               )
           }
         }
-        OnlineProviderType.OPENAI, OnlineProviderType.CUSTOM_OPENAI -> {
+        OnlineProviderType.OPENAI, OnlineProviderType.CUSTOM_OPENAI, OnlineProviderType.CUSTOM_ADAPTER -> {
           val choices = json.optJSONArray("choices")
           if (choices != null && choices.length() > 0) {
             val delta = choices.getJSONObject(0).optJSONObject("delta")

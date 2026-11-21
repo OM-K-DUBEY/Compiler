@@ -23,7 +23,6 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
@@ -32,7 +31,6 @@ import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -50,15 +48,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.example.ai.InstalledOfflineModel
-import com.example.ai.OfflineDownloadState
-import com.example.ai.OfflineModelCatalog
-import com.example.ai.OfflineModelSpec
 import com.example.core.common.Formatters
 import com.example.core.database.AiMessageEntity
 import com.example.core.database.CheckpointEntity
 import com.example.core.database.ProjectEntity
-import com.example.core.preferences.AiMode
 import com.example.core.preferences.IdePreferences
 import com.example.editor.DiffLineType
 import com.example.ui.components.ConfirmActionDialog
@@ -76,10 +69,6 @@ fun AiAssistantScreen(
   messages: List<AiMessageEntity>,
   checkpoints: List<CheckpointEntity>,
   preferences: IdePreferences,
-  effectiveMode: AiMode,
-  installedModels: List<InstalledOfflineModel>,
-  offlineDownloads: Map<String, OfflineDownloadState>,
-  isNativeLlamaLoaded: Boolean,
   onSendMessage: (String, Boolean) -> Unit,
   onCancelGeneration: () -> Unit,
   onToggleAgentMode: (Boolean) -> Unit,
@@ -89,14 +78,9 @@ fun AiAssistantScreen(
   onClearChat: () -> Unit,
   onConfirmConsent: (String) -> Unit,
   onDismissConsent: () -> Unit,
-  onDownloadModel: (OfflineModelSpec) -> Unit,
-  onCancelModelDownload: (String) -> Unit,
-  onDeleteModel: (String) -> Unit,
-  onSelectOfflineModel: (String) -> Unit,
 ) {
   val ideColors = LocalIdeColors.current
   var input by remember { mutableStateOf("") }
-  var showModelsSheet by remember { mutableStateOf(false) }
   var showCheckpointsSheet by remember { mutableStateOf(false) }
 
   Column(modifier = Modifier.fillMaxSize().padding(12.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -111,10 +95,8 @@ fun AiAssistantScreen(
           Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("AI Engineer", style = MaterialTheme.typography.titleMedium)
             StatusPill(
-              text =
-                if (effectiveMode == AiMode.ONLINE) "${preferences.onlineProvider.displayName} (${preferences.onlineModelId})"
-                else "Offline GGUF",
-              color = if (effectiveMode == AiMode.ONLINE) MaterialTheme.colorScheme.primary else ideColors.warning,
+              text = "${preferences.onlineProvider.displayName} (${preferences.onlineModelId})",
+              color = MaterialTheme.colorScheme.primary,
             )
           }
           Text(
@@ -132,11 +114,6 @@ fun AiAssistantScreen(
       }
       Spacer(Modifier.height(6.dp))
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        FilterChip(
-          selected = showModelsSheet,
-          onClick = { showModelsSheet = !showModelsSheet },
-          label = { Text("GGUF Models (${installedModels.size})") },
-        )
         FilterChip(
           selected = showCheckpointsSheet,
           onClick = { showCheckpointsSheet = !showCheckpointsSheet },
@@ -327,59 +304,6 @@ fun AiAssistantScreen(
       confirmLabel = "Allow & Send",
       onConfirm = { onConfirmConsent(state.pendingPromptForConsent) },
       onDismiss = onDismissConsent,
-    )
-  }
-
-  if (showModelsSheet) {
-    AlertDialog(
-      onDismissRequest = { showModelsSheet = false },
-      title = { Text("Offline GGUF Models") },
-      text = {
-        LazyColumn(modifier = Modifier.height(340.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-          item {
-            StatusPill(
-              text = if (isNativeLlamaLoaded) "Native llama_jni loaded" else "Native llama_jni not bundled (GGUF download & header verification active)",
-              color = if (isNativeLlamaLoaded) ideColors.success else ideColors.warning,
-            )
-          }
-          items(OfflineModelCatalog.models, key = { it.id }) { spec ->
-            val dl = offlineDownloads[spec.id]
-            val installed = installedModels.firstOrNull { it.fileName == spec.fileName }
-            IdePanel(modifier = Modifier.fillMaxWidth()) {
-              Text(spec.displayName, style = MaterialTheme.typography.titleSmall)
-              Text(
-                "${Formatters.formatBytes(spec.sizeBytes)} • Min RAM ${Formatters.formatBytes(spec.minRamBytes)}",
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-              )
-              Text(spec.notes, style = MaterialTheme.typography.bodySmall)
-              Spacer(Modifier.height(6.dp))
-              if (dl != null) {
-                val prog = if (dl.totalBytes > 0) dl.bytesRead.toFloat() / dl.totalBytes.toFloat() else 0f
-                LinearProgressIndicator(progress = { prog.coerceIn(0f, 1f) }, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(4.dp))
-                OutlinedButton(onClick = { onCancelModelDownload(spec.id) }) { Text("Cancel") }
-              } else if (installed != null) {
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                  OutlinedButton(onClick = { onSelectOfflineModel(installed.filePath) }) {
-                    Text(if (preferences.selectedOfflineModelPath == installed.filePath) "Selected" else "Use")
-                  }
-                  OutlinedButton(onClick = { onDeleteModel(installed.filePath) }) {
-                    Text("Remove", color = MaterialTheme.colorScheme.error)
-                  }
-                }
-              } else {
-                Button(onClick = { onDownloadModel(spec) }) {
-                  Icon(Icons.Default.Download, contentDescription = null)
-                  Spacer(Modifier.width(4.dp))
-                  Text("Download GGUF")
-                }
-              }
-            }
-          }
-        }
-      },
-      confirmButton = { TextButton(onClick = { showModelsSheet = false }) { Text("Close") } },
     )
   }
 

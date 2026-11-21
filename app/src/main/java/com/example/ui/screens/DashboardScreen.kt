@@ -192,9 +192,9 @@ fun DashboardScreen(
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
           Column(modifier = Modifier.weight(1f)) {
-            Text("AI Mode", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("AI Provider", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-              "${preferences.aiMode.name} (${preferences.onlineProvider.displayName})",
+              "${preferences.onlineProvider.displayName} (${preferences.onlineModelId.ifBlank { "default" }})",
               style = MaterialTheme.typography.bodyMedium,
             )
           }

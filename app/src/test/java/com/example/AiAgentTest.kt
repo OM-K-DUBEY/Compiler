@@ -4,25 +4,18 @@ import android.content.Context
 import androidx.room.Room
 import androidx.test.core.app.ApplicationProvider
 import com.example.ai.CodingAgentEngine
-import com.example.ai.OfflineAiManager
 import com.example.ai.ProjectContextManager
 import com.example.core.common.AppDispatchers
-import com.example.core.common.DeviceInfoProvider
 import com.example.core.database.DevForgeDatabase
 import com.example.core.storage.ProjectTemplateType
 import com.example.core.storage.ProjectWorkspaceManager
 import java.io.File
-import java.io.RandomAccessFile
-import java.nio.ByteBuffer
-import java.nio.ByteOrder
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.runBlocking
-import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
-import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -32,13 +25,12 @@ import org.robolectric.annotation.Config
 
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [36])
-class AiAgentAndOfflineTest {
+class AiAgentTest {
 
   private lateinit var context: Context
   private lateinit var db: DevForgeDatabase
   private lateinit var workspaceManager: ProjectWorkspaceManager
   private lateinit var agentEngine: CodingAgentEngine
-  private lateinit var offlineManager: OfflineAiManager
   private val dispatchers = AppDispatchers(Dispatchers.Unconfined, Dispatchers.Unconfined, Dispatchers.Unconfined)
 
   @Before
@@ -47,7 +39,6 @@ class AiAgentAndOfflineTest {
     db = Room.inMemoryDatabaseBuilder(context, DevForgeDatabase::class.java).allowMainThreadQueries().build()
     workspaceManager = ProjectWorkspaceManager(context, db.projectDao(), dispatchers)
     agentEngine = CodingAgentEngine(workspaceManager, db.checkpointDao(), dispatchers)
-    offlineManager = OfflineAiManager(context, OkHttpClient(), DeviceInfoProvider(context), dispatchers)
   }
 
   @After
@@ -98,7 +89,6 @@ class AiAgentAndOfflineTest {
     assertTrue(File(root, "src/main/kotlin/Helper.kt").exists())
     assertTrue(workspaceManager.readFileText(root, "src/main/kotlin/Main.kt").contains("helper()"))
 
-    // Rollback and verify exact original state
     val rolledBack = agentEngine.rollbackCheckpoint(project, checkpoint.id)
     assertTrue(rolledBack)
     assertFalse(File(root, "src/main/kotlin/Helper.kt").exists())
@@ -113,28 +103,5 @@ class AiAgentAndOfflineTest {
     assertTrue(snapshot.fileTreeLines.isNotEmpty())
     assertTrue(snapshot.includedFiles.containsKey("settings.gradle.kts"))
     assertTrue(snapshot.estimatedTokens > 0)
-  }
-
-  @Test
-  fun offlineManagerVerifiesValidAndInvalidGgufHeaders() {
-    val validFile = File(context.cacheDir, "valid_test.gguf")
-    RandomAccessFile(validFile, "rw").use { raf ->
-      raf.write("GGUF".toByteArray(Charsets.US_ASCII))
-      val buf = ByteBuffer.allocate(20).order(ByteOrder.LITTLE_ENDIAN)
-      buf.putInt(3) // version 3
-      buf.putLong(128L) // tensors
-      buf.putLong(42L) // kv count
-      raf.write(buf.array())
-    }
-    val parsed = offlineManager.parseGgufHeader(validFile)
-    assertNotNull(parsed)
-    assertEquals(3, parsed!!.version)
-    assertEquals(128L, parsed.tensorCount)
-    assertEquals(42L, parsed.metadataKvCount)
-    validFile.delete()
-
-    val badFile = File(context.cacheDir, "fake.gguf").apply { writeText("NOT_A_GGUF_FILE_1234567890") }
-    assertNull(offlineManager.parseGgufHeader(badFile))
-    badFile.delete()
   }
 }

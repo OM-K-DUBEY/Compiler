@@ -5,8 +5,6 @@ import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.DevForgeApp
-import com.example.ai.InstalledOfflineModel
-import com.example.ai.OfflineDownloadState
 import com.example.compiler.BuildExecutionResult
 import com.example.compiler.BuildSystemType
 import com.example.compiler.BuildVariant
@@ -16,7 +14,6 @@ import com.example.core.database.AiMessageEntity
 import com.example.core.database.BuildHistoryEntity
 import com.example.core.database.CheckpointEntity
 import com.example.core.database.ProjectEntity
-import com.example.core.preferences.AiMode
 import com.example.core.preferences.IdePreferences
 import com.example.core.preferences.OnlineProviderType
 import com.example.core.security.SigningKeyInfo
@@ -79,7 +76,6 @@ class MainIdeViewModel(application: Application) : AndroidViewModel(application)
       aiMessageDao = container.database.aiMessageDao(),
       checkpointDao = container.database.checkpointDao(),
       onlineAiClient = container.onlineAiClient,
-      offlineAiManager = container.offlineAiManager,
       contextManager = container.projectContextManager,
       codingAgentEngine = container.codingAgentEngine,
       preferencesRepository = container.preferencesRepository,
@@ -120,12 +116,6 @@ class MainIdeViewModel(application: Application) : AndroidViewModel(application)
     preferences
       .flatMapLatest { prefs -> container.sdkManagerRepository.observePackages(prefs.customToolchainPath) }
       .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
-
-  val installedOfflineModels: StateFlow<List<InstalledOfflineModel>> =
-    container.offlineAiManager.installedModels
-  val offlineDownloads: StateFlow<Map<String, OfflineDownloadState>> =
-    container.offlineAiManager.downloads
-  val isNativeLlamaLoaded: Boolean get() = container.offlineAiManager.isNativeLlamaLoaded
 
   val terminalLines: StateFlow<List<TerminalLine>> = container.terminalSessionManager.lines
   val terminalWorkingDir: StateFlow<File> = container.terminalSessionManager.workingDir
@@ -459,8 +449,6 @@ class MainIdeViewModel(application: Application) : AndroidViewModel(application)
     }
   }
 
-  fun setAiMode(mode: AiMode) = viewModelScope.launch { container.preferencesRepository.setAiMode(mode) }
-
   fun saveOnlineAiConfig(
     provider: OnlineProviderType,
     modelId: String,
@@ -476,11 +464,6 @@ class MainIdeViewModel(application: Application) : AndroidViewModel(application)
 
   fun setAllowCodeUpload(allowed: Boolean) =
     viewModelScope.launch { container.preferencesRepository.setAllowUploadingProjectFilesToOnlineAi(allowed) }
-
-  fun selectOfflineModel(path: String?, contextSize: Int, temp: Float, threads: Int) =
-    viewModelScope.launch {
-      container.preferencesRepository.setOfflineAiConfig(path, contextSize, temp, threads)
-    }
 
   fun setCustomToolchainPath(path: String) =
     viewModelScope.launch { container.preferencesRepository.setCustomToolchainPath(path) }

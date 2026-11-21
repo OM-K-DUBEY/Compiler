@@ -3,8 +3,6 @@ package com.example.ui.viewmodel
 import com.example.ai.AiStreamEvent
 import com.example.ai.ChatTurn
 import com.example.ai.CodingAgentEngine
-import com.example.ai.OfflineAiManager
-import com.example.ai.OfflineModelSpec
 import com.example.ai.OnlineAiClient
 import com.example.ai.ProjectContextManager
 import com.example.core.common.DeviceInfoProvider
@@ -13,7 +11,6 @@ import com.example.core.database.AiMessageEntity
 import com.example.core.database.CheckpointDao
 import com.example.core.database.CheckpointEntity
 import com.example.core.database.ProjectEntity
-import com.example.core.preferences.AiMode
 import com.example.core.preferences.IdePreferences
 import com.example.core.preferences.PreferencesRepository
 import com.example.ui.state.AiUiState
@@ -32,7 +29,6 @@ class AiAndAgentController(
   private val aiMessageDao: AiMessageDao,
   private val checkpointDao: CheckpointDao,
   private val onlineAiClient: OnlineAiClient,
-  private val offlineAiManager: OfflineAiManager,
   private val contextManager: ProjectContextManager,
   private val codingAgentEngine: CodingAgentEngine,
   private val preferencesRepository: PreferencesRepository,
@@ -42,10 +38,6 @@ class AiAndAgentController(
   val state: StateFlow<AiUiState> = _state.asStateFlow()
 
   private var streamJob: Job? = null
-
-  init {
-    offlineAiManager.refreshInstalledModels()
-  }
 
   fun observeMessages(projectId: String?): Flow<List<AiMessageEntity>> =
     aiMessageDao.observeThread(projectId)
@@ -91,13 +83,19 @@ class AiAndAgentController(
     val cleanPrompt = prompt.trim()
     if (cleanPrompt.isEmpty() || _state.value.isGenerating) return
 
-    val effectiveMode = resolveProviderMode(prefs)
-    if (effectiveMode == AiMode.ONLINE && project != null && !prefs.allowUploadingProjectFilesToOnlineAi) {
+    if (project != null && !prefs.allowUploadingProjectFilesToOnlineAi) {
       _state.update {
         it.copy(
           needsOnlineConsentDialog = true,
           pendingPromptForConsent = cleanPrompt,
         )
+      }
+      return
+    }
+
+    if (!deviceInfoProvider.isNetworkConnected()) {
+      _state.update {
+        it.copy(lastError = "No active network connection. Online AI providers require internet access.")
       }
       return
     }
@@ -121,16 +119,11 @@ class AiAndAgentController(
           )
         )
 
-        if (effectiveMode == AiMode.OFFLINE) {
-          handleOfflineInference(project, prefs)
-          return@launch
-        }
-
         val apiKey = preferencesRepository.decryptApiKey(prefs.encryptedApiKey)
         if (apiKey.isBlank()) {
           _state.update {
             it.copy(
-              lastError = "No API key configured for ${prefs.onlineProvider.displayName}. Configure it in Settings or switch to Offline AI when a native GGUF runtime is attached.",
+              lastError = "No API key configured for ${prefs.onlineProvider.displayName}. Configure a provider and API key in Settings or AI Providers.",
             )
           }
           return@launch
@@ -255,34 +248,6 @@ class AiAndAgentController(
       }
   }
 
-  private suspend fun handleOfflineInference(project: ProjectEntity?, prefs: IdePreferences) {
-    if (!offlineAiManager.isNativeLlamaLoaded) {
-      val selectedModel = prefs.selectedOfflineModelPath
-      val modelNote =
-        if (selectedModel != null) "Selected GGUF model: ${java.io.File(selectedModel).name} (header verified)."
-        else "No GGUF model selected."
-      val msg =
-        "Offline llama.cpp native inference library (libllama_jni.so) is not bundled in this APK build. " +
-          "$modelNote To run on-device LLM generation, build the native llama.cpp CMake JNI module with Android NDK, or configure an Online API key in Settings."
-      aiMessageDao.insert(
-        AiMessageEntity(
-          projectId = project?.id,
-          role = "assistant",
-          content = msg,
-          providerLabel = "Offline Runtime Check",
-          modelId = "llama.cpp",
-          promptTokens = 0,
-          completionTokens = 0,
-          hasAgentPlan = false,
-          planJson = null,
-          timestampMillis = System.currentTimeMillis(),
-        )
-      )
-      _state.update { it.copy(isGenerating = false, lastError = msg) }
-      return
-    }
-  }
-
   fun cancelGeneration() {
     onlineAiClient.cancelActiveRequest()
     streamJob?.cancel()
@@ -329,38 +294,5 @@ class AiAndAgentController(
 
   fun clearChat(projectId: String?) {
     scope.launch { aiMessageDao.clearThread(projectId) }
-  }
-
-  fun downloadOfflineModel(spec: OfflineModelSpec) {
-    scope.launch {
-      val res = offlineAiManager.downloadModel(spec)
-      res.onSuccess { model ->
-        _state.update { it.copy(statusBanner = "Verified & installed ${model.fileName}") }
-      }.onFailure { err ->
-        _state.update { it.copy(lastError = err.message ?: "Model download failed") }
-      }
-    }
-  }
-
-  fun cancelOfflineDownload(modelId: String) {
-    offlineAiManager.cancelDownload(modelId)
-  }
-
-  fun deleteOfflineModel(filePath: String) {
-    scope.launch {
-      offlineAiManager.deleteModel(filePath)
-      _state.update { it.copy(statusBanner = "Deleted offline model") }
-    }
-  }
-
-  fun resolveProviderMode(prefs: IdePreferences): AiMode {
-    return when (prefs.aiMode) {
-      AiMode.ONLINE -> AiMode.ONLINE
-      AiMode.OFFLINE -> AiMode.OFFLINE
-      AiMode.AUTOMATIC -> {
-        val onlineReady = prefs.hasApiKey && deviceInfoProvider.isNetworkConnected()
-        if (onlineReady) AiMode.ONLINE else AiMode.OFFLINE
-      }
-    }
   }
 }

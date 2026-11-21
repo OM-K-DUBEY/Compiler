@@ -5,7 +5,6 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -14,12 +13,6 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
 private val Context.devForgeDataStore: DataStore<Preferences> by preferencesDataStore(name = "devforge_settings")
-
-enum class AiMode {
-  AUTOMATIC,
-  ONLINE,
-  OFFLINE,
-}
 
 enum class OnlineProviderType(val displayName: String, val defaultBaseUrl: String, val defaultModel: String) {
   GEMINI(
@@ -40,7 +33,12 @@ enum class OnlineProviderType(val displayName: String, val defaultBaseUrl: Strin
   CUSTOM_OPENAI(
     displayName = "Custom OpenAI-Compatible",
     defaultBaseUrl = "https://api.openai.com/v1",
-    defaultModel = "llama-3.3-70b-versatile",
+    defaultModel = "",
+  ),
+  CUSTOM_ADAPTER(
+    displayName = "Custom REST Adapter",
+    defaultBaseUrl = "https://api.example.com/v1",
+    defaultModel = "",
   ),
 }
 
@@ -51,18 +49,17 @@ data class IdePreferences(
   val editorWordWrap: Boolean = false,
   val autoSaveEnabled: Boolean = true,
   val activeProjectId: String? = null,
-  val aiMode: AiMode = AiMode.AUTOMATIC,
   val onlineProvider: OnlineProviderType = OnlineProviderType.GEMINI,
   val onlineModelId: String = OnlineProviderType.GEMINI.defaultModel,
   val customEndpointUrl: String = OnlineProviderType.CUSTOM_OPENAI.defaultBaseUrl,
   val encryptedApiKey: String = "",
   val hasApiKey: Boolean = false,
   val allowUploadingProjectFilesToOnlineAi: Boolean = false,
-  val selectedOfflineModelPath: String? = null,
-  val offlineContextSize: Int = 4096,
-  val offlineTemperature: Float = 0.2f,
-  val offlineThreads: Int = 4,
   val customToolchainPath: String = "",
+  val defaultProviderId: String? = null,
+  val defaultChatModelCompositeId: String? = null,
+  val agentModelCompositeId: String? = null,
+  val autoFallbackOnFailure: Boolean = false,
 )
 
 class PreferencesRepository(
@@ -76,17 +73,16 @@ class PreferencesRepository(
     val WORD_WRAP = booleanPreferencesKey("editor_word_wrap")
     val AUTO_SAVE = booleanPreferencesKey("auto_save_enabled")
     val ACTIVE_PROJECT_ID = stringPreferencesKey("active_project_id")
-    val AI_MODE = stringPreferencesKey("ai_mode")
     val ONLINE_PROVIDER = stringPreferencesKey("online_provider")
     val ONLINE_MODEL_ID = stringPreferencesKey("online_model_id")
     val CUSTOM_ENDPOINT_URL = stringPreferencesKey("custom_endpoint_url")
     val ENCRYPTED_API_KEY = stringPreferencesKey("encrypted_api_key")
     val ALLOW_CODE_UPLOAD = booleanPreferencesKey("allow_code_upload")
-    val OFFLINE_MODEL_PATH = stringPreferencesKey("offline_model_path")
-    val OFFLINE_CONTEXT_SIZE = intPreferencesKey("offline_context_size")
-    val OFFLINE_TEMPERATURE = floatPreferencesKey("offline_temperature")
-    val OFFLINE_THREADS = intPreferencesKey("offline_threads")
     val CUSTOM_TOOLCHAIN_PATH = stringPreferencesKey("custom_toolchain_path")
+    val DEFAULT_PROVIDER_ID = stringPreferencesKey("default_provider_id")
+    val DEFAULT_CHAT_MODEL_ID = stringPreferencesKey("default_chat_model_id")
+    val AGENT_MODEL_ID = stringPreferencesKey("agent_model_id")
+    val AUTO_FALLBACK = booleanPreferencesKey("auto_fallback_on_failure")
   }
 
   val preferences: Flow<IdePreferences> =
@@ -95,8 +91,6 @@ class PreferencesRepository(
       val provider =
         OnlineProviderType.entries.firstOrNull { it.name == providerName }
           ?: OnlineProviderType.GEMINI
-      val modeName = prefs[Keys.AI_MODE]
-      val aiMode = AiMode.entries.firstOrNull { it.name == modeName } ?: AiMode.AUTOMATIC
       val encKey = prefs[Keys.ENCRYPTED_API_KEY].orEmpty()
 
       IdePreferences(
@@ -106,18 +100,17 @@ class PreferencesRepository(
         editorWordWrap = prefs[Keys.WORD_WRAP] ?: false,
         autoSaveEnabled = prefs[Keys.AUTO_SAVE] ?: true,
         activeProjectId = prefs[Keys.ACTIVE_PROJECT_ID],
-        aiMode = aiMode,
         onlineProvider = provider,
         onlineModelId = prefs[Keys.ONLINE_MODEL_ID] ?: provider.defaultModel,
         customEndpointUrl = prefs[Keys.CUSTOM_ENDPOINT_URL] ?: provider.defaultBaseUrl,
         encryptedApiKey = encKey,
         hasApiKey = encKey.isNotBlank(),
         allowUploadingProjectFilesToOnlineAi = prefs[Keys.ALLOW_CODE_UPLOAD] ?: false,
-        selectedOfflineModelPath = prefs[Keys.OFFLINE_MODEL_PATH],
-        offlineContextSize = prefs[Keys.OFFLINE_CONTEXT_SIZE] ?: 4096,
-        offlineTemperature = prefs[Keys.OFFLINE_TEMPERATURE] ?: 0.2f,
-        offlineThreads = prefs[Keys.OFFLINE_THREADS] ?: 4,
         customToolchainPath = prefs[Keys.CUSTOM_TOOLCHAIN_PATH].orEmpty(),
+        defaultProviderId = prefs[Keys.DEFAULT_PROVIDER_ID],
+        defaultChatModelCompositeId = prefs[Keys.DEFAULT_CHAT_MODEL_ID],
+        agentModelCompositeId = prefs[Keys.AGENT_MODEL_ID],
+        autoFallbackOnFailure = prefs[Keys.AUTO_FALLBACK] ?: false,
       )
     }
 
@@ -139,10 +132,6 @@ class PreferencesRepository(
       if (projectId == null) it.remove(Keys.ACTIVE_PROJECT_ID)
       else it[Keys.ACTIVE_PROJECT_ID] = projectId
     }
-  }
-
-  suspend fun setAiMode(mode: AiMode) {
-    context.devForgeDataStore.edit { it[Keys.AI_MODE] = mode.name }
   }
 
   suspend fun setOnlineAiConfig(
@@ -178,22 +167,32 @@ class PreferencesRepository(
     context.devForgeDataStore.edit { it[Keys.ALLOW_CODE_UPLOAD] = allowed }
   }
 
-  suspend fun setOfflineAiConfig(
-    modelPath: String?,
-    contextSize: Int,
-    temperature: Float,
-    threads: Int,
+  suspend fun setCustomToolchainPath(path: String) {
+    context.devForgeDataStore.edit { it[Keys.CUSTOM_TOOLCHAIN_PATH] = path.trim() }
+  }
+
+  suspend fun setDefaultProviderAndModels(
+    defaultProviderId: String? = null,
+    defaultChatModelCompositeId: String? = null,
+    agentModelCompositeId: String? = null,
   ) {
-    context.devForgeDataStore.edit {
-      if (modelPath.isNullOrBlank()) it.remove(Keys.OFFLINE_MODEL_PATH)
-      else it[Keys.OFFLINE_MODEL_PATH] = modelPath
-      it[Keys.OFFLINE_CONTEXT_SIZE] = contextSize.coerceIn(512, 32768)
-      it[Keys.OFFLINE_TEMPERATURE] = temperature.coerceIn(0f, 2f)
-      it[Keys.OFFLINE_THREADS] = threads.coerceIn(1, 16)
+    context.devForgeDataStore.edit { prefs ->
+      if (defaultProviderId != null) {
+        if (defaultProviderId.isBlank()) prefs.remove(Keys.DEFAULT_PROVIDER_ID)
+        else prefs[Keys.DEFAULT_PROVIDER_ID] = defaultProviderId
+      }
+      if (defaultChatModelCompositeId != null) {
+        if (defaultChatModelCompositeId.isBlank()) prefs.remove(Keys.DEFAULT_CHAT_MODEL_ID)
+        else prefs[Keys.DEFAULT_CHAT_MODEL_ID] = defaultChatModelCompositeId
+      }
+      if (agentModelCompositeId != null) {
+        if (agentModelCompositeId.isBlank()) prefs.remove(Keys.AGENT_MODEL_ID)
+        else prefs[Keys.AGENT_MODEL_ID] = agentModelCompositeId
+      }
     }
   }
 
-  suspend fun setCustomToolchainPath(path: String) {
-    context.devForgeDataStore.edit { it[Keys.CUSTOM_TOOLCHAIN_PATH] = path.trim() }
+  suspend fun setAutoFallbackOnFailure(enabled: Boolean) {
+    context.devForgeDataStore.edit { it[Keys.AUTO_FALLBACK] = enabled }
   }
 }

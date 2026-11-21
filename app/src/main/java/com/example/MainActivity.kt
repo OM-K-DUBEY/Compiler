@@ -105,8 +105,6 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
   val aiMessages by vm.aiMessages.collectAsStateWithLifecycle()
   val checkpoints by vm.checkpoints.collectAsStateWithLifecycle()
   val sdkPackages by vm.sdkPackages.collectAsStateWithLifecycle()
-  val installedModels by vm.installedOfflineModels.collectAsStateWithLifecycle()
-  val offlineDownloads by vm.offlineDownloads.collectAsStateWithLifecycle()
   val hardware by vm.hardwareSnapshot.collectAsStateWithLifecycle()
   val projectsUiState by vm.projectsUiState.collectAsStateWithLifecycle()
   val terminalLines by vm.terminalLines.collectAsStateWithLifecycle()
@@ -319,10 +317,6 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
                   messages = aiMessages,
                   checkpoints = checkpoints,
                   preferences = prefs,
-                  effectiveMode = vm.aiController.resolveProviderMode(prefs),
-                  installedModels = installedModels,
-                  offlineDownloads = offlineDownloads,
-                  isNativeLlamaLoaded = vm.isNativeLlamaLoaded,
                   onSendMessage = vm::sendAiMessage,
                   onCancelGeneration = vm.aiController::cancelGeneration,
                   onToggleAgentMode = vm.aiController::setAgentMode,
@@ -332,17 +326,6 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
                   onClearChat = { vm.aiController.clearChat(activeProject?.id) },
                   onConfirmConsent = vm::confirmAiOnlineConsent,
                   onDismissConsent = vm.aiController::dismissConsentDialog,
-                  onDownloadModel = vm.aiController::downloadOfflineModel,
-                  onCancelModelDownload = vm.aiController::cancelOfflineDownload,
-                  onDeleteModel = vm.aiController::deleteOfflineModel,
-                  onSelectOfflineModel = { path ->
-                    vm.selectOfflineModel(
-                      path,
-                      prefs.offlineContextSize,
-                      prefs.offlineTemperature,
-                      prefs.offlineThreads,
-                    )
-                  },
                 )
               }
               composable(IdeRoute.TERMINAL.route) {
@@ -392,11 +375,9 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
                   signingKeyInfo = signingKeyInfo,
                   onSetDarkTheme = vm::setDarkTheme,
                   onSaveEditorSettings = vm::updateEditorSettings,
-                  onSetAiMode = vm::setAiMode,
                   onSaveOnlineConfig = vm::saveOnlineAiConfig,
                   onClearApiKey = vm::clearApiKey,
                   onSetAllowCodeUpload = vm::setAllowCodeUpload,
-                  onSaveOfflineConfig = vm::selectOfflineModel,
                   onSaveCustomToolchainPath = vm::setCustomToolchainPath,
                   onEnsureSigningKey = vm::ensureSigningKey,
                 )
