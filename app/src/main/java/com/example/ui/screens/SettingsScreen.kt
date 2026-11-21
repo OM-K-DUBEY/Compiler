@@ -1,7 +1,6 @@
 package com.example.ui.screens
 
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -10,10 +9,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.Button
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -29,28 +26,29 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.core.preferences.IdePreferences
-import com.example.core.preferences.OnlineProviderType
 import com.example.core.security.SigningKeyInfo
 import com.example.ui.components.IdePanel
 import com.example.ui.components.IdeSectionHeader
 import com.example.ui.components.StatusPill
+import com.example.ui.navigation.IdeRoute
 import com.example.ui.theme.LocalIdeColors
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
   preferences: IdePreferences,
+  providerCount: Int,
+  mcpServerCount: Int,
   signingKeyInfo: SigningKeyInfo?,
   onSetDarkTheme: (Boolean) -> Unit,
   onSaveEditorSettings: (Int, Int, Boolean, Boolean) -> Unit,
-  onSaveOnlineConfig: (OnlineProviderType, String, String, String?) -> Unit,
-  onClearApiKey: () -> Unit,
   onSetAllowCodeUpload: (Boolean) -> Unit,
+  onSetAutoFallback: (Boolean) -> Unit,
   onSaveCustomToolchainPath: (String) -> Unit,
   onEnsureSigningKey: () -> Unit,
+  onNavigate: (IdeRoute) -> Unit,
 ) {
   val ideColors = LocalIdeColors.current
 
@@ -58,13 +56,6 @@ fun SettingsScreen(
   var tabSize by remember(preferences.editorTabSize) { mutableIntStateOf(preferences.editorTabSize) }
   var wordWrap by remember(preferences.editorWordWrap) { mutableStateOf(preferences.editorWordWrap) }
   var autoSave by remember(preferences.autoSaveEnabled) { mutableStateOf(preferences.autoSaveEnabled) }
-
-  var provider by remember(preferences.onlineProvider) { mutableStateOf(preferences.onlineProvider) }
-  var modelId by remember(preferences.onlineModelId) { mutableStateOf(preferences.onlineModelId) }
-  var endpointUrl by remember(preferences.customEndpointUrl) { mutableStateOf(preferences.customEndpointUrl) }
-  var apiKeyInput by remember { mutableStateOf("") }
-  var keySavedNotice by remember { mutableStateOf<String?>(null) }
-
   var toolchainPath by remember(preferences.customToolchainPath) { mutableStateOf(preferences.customToolchainPath) }
 
   LazyColumn(
@@ -123,86 +114,31 @@ fun SettingsScreen(
 
     item {
       IdePanel(modifier = Modifier.fillMaxWidth()) {
-        IdeSectionHeader(title = "ONLINE AI ENGINE & ENCRYPTED KEYSTORE")
-        Spacer(Modifier.height(8.dp))
-        Text("Online Provider", style = MaterialTheme.typography.labelMedium)
-        Spacer(Modifier.height(4.dp))
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          OnlineProviderType.entries.forEach { p ->
-            FilterChip(
-              selected = provider == p,
-              onClick = {
-                provider = p
-                modelId = p.defaultModel
-                endpointUrl = p.defaultBaseUrl
-              },
-              label = { Text(p.displayName) },
-            )
-          }
-        }
-
-        Spacer(Modifier.height(8.dp))
-        OutlinedTextField(
-          value = modelId,
-          onValueChange = { modelId = it },
-          label = { Text("Model ID") },
-          singleLine = true,
-          modifier = Modifier.fillMaxWidth(),
-        )
+        IdeSectionHeader(title = "AI GOVERNANCE, MCP & PROTECTION")
         Spacer(Modifier.height(6.dp))
-        OutlinedTextField(
-          value = endpointUrl,
-          onValueChange = { endpointUrl = it },
-          label = { Text("Base API Endpoint URL") },
-          singleLine = true,
-          modifier = Modifier.fillMaxWidth(),
-        )
-        Spacer(Modifier.height(6.dp))
-        OutlinedTextField(
-          value = apiKeyInput,
-          onValueChange = { apiKeyInput = it },
-          label = {
-            Text(
-              if (preferences.hasApiKey) "API Key (encrypted in AndroidKeyStore — enter to replace)"
-              else "API Key (stored encrypted via AndroidKeyStore AES-256-GCM)"
-            )
-          },
-          visualTransformation = PasswordVisualTransformation(),
-          singleLine = true,
-          modifier = Modifier.fillMaxWidth().testTag("settings_api_key_input"),
+        Text(
+          "Configured Providers: $providerCount • Registered MCP Servers: $mcpServerCount\nDefault Chat Model: ${preferences.defaultChatModelCompositeId ?: "Auto"} • Agent Model: ${preferences.agentModelCompositeId ?: "Same as Chat"}",
+          style = MaterialTheme.typography.bodySmall,
+          color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
-          Button(
-            onClick = {
-              onSaveOnlineConfig(provider, modelId, endpointUrl, apiKeyInput.takeIf { it.isNotBlank() })
-              if (apiKeyInput.isNotBlank()) {
-                apiKeyInput = ""
-                keySavedNotice = "API key encrypted & saved in AndroidKeyStore"
-              } else {
-                keySavedNotice = "Provider settings updated"
-              }
-            },
-            modifier = Modifier.testTag("settings_save_ai_btn"),
-          ) {
-            Text("Save AI Config")
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          Button(onClick = { onNavigate(IdeRoute.AI_PROVIDERS) }, modifier = Modifier.testTag("settings_open_providers_btn")) {
+            Text("AI Providers")
           }
-          if (preferences.hasApiKey) {
-            OutlinedButton(
-              onClick = {
-                onClearApiKey()
-                keySavedNotice = "Stored API key cleared"
-              },
-            ) {
-              Text("Clear Key", color = MaterialTheme.colorScheme.error)
-            }
+          OutlinedButton(onClick = { onNavigate(IdeRoute.MODEL_SELECTOR) }, modifier = Modifier.testTag("settings_open_models_btn")) {
+            Text("Model Selector")
+          }
+          OutlinedButton(onClick = { onNavigate(IdeRoute.MCP_MANAGER) }, modifier = Modifier.testTag("settings_open_mcp_btn")) {
+            Text("MCP Servers")
+          }
+          OutlinedButton(onClick = { onNavigate(IdeRoute.PROTECTION) }, modifier = Modifier.testTag("settings_open_protection_btn")) {
+            Text("Code Protection")
+          }
+          OutlinedButton(onClick = { onNavigate(IdeRoute.MAPPING_VAULT) }, modifier = Modifier.testTag("settings_open_vault_btn")) {
+            Text("Mapping Vault")
           }
         }
-        keySavedNotice?.let {
-          Spacer(Modifier.height(4.dp))
-          Text(it, style = MaterialTheme.typography.labelSmall, color = ideColors.success)
-        }
-
         Spacer(Modifier.height(8.dp))
         Row(
           modifier = Modifier.fillMaxWidth(),
@@ -211,6 +147,18 @@ fun SettingsScreen(
         ) {
           Text("Allow sending project files to Online AI", style = MaterialTheme.typography.bodySmall, modifier = Modifier.weight(1f))
           Switch(checked = preferences.allowUploadingProjectFilesToOnlineAi, onCheckedChange = onSetAllowCodeUpload)
+        }
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            "Opt-in auto-fallback to backup configured provider on error (never silent)",
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.weight(1f),
+          )
+          Switch(checked = preferences.autoFallbackOnFailure, onCheckedChange = onSetAutoFallback)
         }
       }
     }

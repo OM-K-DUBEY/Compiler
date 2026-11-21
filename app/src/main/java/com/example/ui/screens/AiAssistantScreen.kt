@@ -23,10 +23,14 @@ import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Dns
+import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Stop
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -52,7 +56,6 @@ import com.example.core.common.Formatters
 import com.example.core.database.AiMessageEntity
 import com.example.core.database.CheckpointEntity
 import com.example.core.database.ProjectEntity
-import com.example.core.preferences.IdePreferences
 import com.example.editor.DiffLineType
 import com.example.ui.components.ConfirmActionDialog
 import com.example.ui.components.IdePanel
@@ -67,23 +70,39 @@ fun AiAssistantScreen(
   state: AiUiState,
   activeProject: ProjectEntity?,
   messages: List<AiMessageEntity>,
+  conversations: List<String>,
   checkpoints: List<CheckpointEntity>,
-  preferences: IdePreferences,
+  activeModelBadge: String,
+  connectedMcpToolCount: Int,
+  selectableContextFiles: () -> List<String>,
   onSendMessage: (String, Boolean) -> Unit,
   onCancelGeneration: () -> Unit,
   onToggleAgentMode: (Boolean) -> Unit,
-  onApprovePlan: () -> Unit,
+  onSelectConversation: (String) -> Unit,
+  onToggleContextFile: (String) -> Unit,
+  onClearContextFiles: () -> Unit,
+  onTogglePatchFile: (String) -> Unit,
+  onSelectAllPatchFiles: () -> Unit,
+  onApprovePlan: (Boolean) -> Unit,
   onDiscardPlan: () -> Unit,
+  onResolveToolApproval: (Boolean) -> Unit,
   onRollbackCheckpoint: (String) -> Unit,
   onClearChat: () -> Unit,
   onConfirmConsent: (String) -> Unit,
   onDismissConsent: () -> Unit,
+  onOpenModelSelector: () -> Unit,
+  onOpenMcpManager: () -> Unit,
 ) {
   val ideColors = LocalIdeColors.current
   var input by remember { mutableStateOf("") }
   var showCheckpointsSheet by remember { mutableStateOf(false) }
+  var showContextPicker by remember { mutableStateOf(false) }
+  var showConversationDialog by remember { mutableStateOf(false) }
 
-  Column(modifier = Modifier.fillMaxSize().padding(12.dp).imePadding(), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+  Column(
+    modifier = Modifier.fillMaxSize().padding(12.dp).imePadding(),
+    verticalArrangement = Arrangement.spacedBy(8.dp),
+  ) {
     // Top AI Control Strip
     IdePanel(modifier = Modifier.fillMaxWidth()) {
       Row(
@@ -94,14 +113,14 @@ fun AiAssistantScreen(
         Column(modifier = Modifier.weight(1f)) {
           Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("AI Engineer", style = MaterialTheme.typography.titleMedium)
-            StatusPill(
-              text = "${preferences.onlineProvider.displayName} (${preferences.onlineModelId})",
-              color = MaterialTheme.colorScheme.primary,
-            )
+            StatusPill(text = activeModelBadge, color = MaterialTheme.colorScheme.primary)
           }
           Text(
-            if (activeProject != null) "Context: ${activeProject.name} • ${state.contextFileCount} files (~${state.contextEstimatedTokens} tok)"
-            else "No active project context",
+            if (activeProject != null) {
+              "Context: ${activeProject.name} • ${state.selectedContextFiles.size} pinned, ${state.contextFileCount} sent (~${state.contextEstimatedTokens} tok)"
+            } else {
+              "No active project context"
+            },
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
@@ -114,6 +133,26 @@ fun AiAssistantScreen(
       }
       Spacer(Modifier.height(6.dp))
       FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        OutlinedButton(onClick = onOpenModelSelector, modifier = Modifier.testTag("ai_open_model_selector_btn")) {
+          Icon(Icons.Default.Tune, contentDescription = null)
+          Spacer(Modifier.width(4.dp))
+          Text("Model")
+        }
+        OutlinedButton(onClick = onOpenMcpManager, modifier = Modifier.testTag("ai_open_mcp_btn")) {
+          Icon(Icons.Default.Dns, contentDescription = null)
+          Spacer(Modifier.width(4.dp))
+          Text("MCP ($connectedMcpToolCount)")
+        }
+        if (activeProject != null) {
+          OutlinedButton(onClick = { showContextPicker = true }, modifier = Modifier.testTag("ai_context_picker_btn")) {
+            Icon(Icons.Default.FolderOpen, contentDescription = null)
+            Spacer(Modifier.width(4.dp))
+            Text("Files (${state.selectedContextFiles.size})")
+          }
+        }
+        OutlinedButton(onClick = { showConversationDialog = true }) {
+          Text("Thread: ${state.conversationId}")
+        }
         FilterChip(
           selected = showCheckpointsSheet,
           onClick = { showCheckpointsSheet = !showCheckpointsSheet },
@@ -127,11 +166,11 @@ fun AiAssistantScreen(
           ) {
             Icon(Icons.Default.BugReport, contentDescription = null)
             Spacer(Modifier.width(4.dp))
-            Text("Fix Build Errors")
+            Text("Fix Build")
           }
         }
         IconButton(onClick = onClearChat) {
-          Icon(Icons.Default.Delete, contentDescription = "Clear chat history")
+          Icon(Icons.Default.Delete, contentDescription = "Clear chat thread")
         }
       }
     }
@@ -146,18 +185,30 @@ fun AiAssistantScreen(
       }
     }
 
-    // Pending Agent Plan + File-Level Diff Approval Panel
+    // Pending Agent Plan + Selective Per-File Diff Approval Panel
     state.pendingPlan?.let { plan ->
       IdePanel(modifier = Modifier.fillMaxWidth().testTag("agent_plan_approval_panel")) {
-        Text("Proposed Agent Changes", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.SpaceBetween,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text("Proposed Agent Changes", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+          TextButton(onClick = onSelectAllPatchFiles) { Text("Select All") }
+        }
         Text(plan.summary, style = MaterialTheme.typography.bodySmall)
         Spacer(Modifier.height(6.dp))
         state.pendingPreviews.forEach { preview ->
-          Text(
-            "${preview.patch.operation.name}: ${preview.patch.relativePath}",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.SemiBold,
-          )
+          val path = preview.patch.relativePath
+          val isSelected = path in state.selectedPatchPaths
+          Row(verticalAlignment = Alignment.CenterVertically) {
+            Checkbox(checked = isSelected, onCheckedChange = { onTogglePatchFile(path) })
+            Text(
+              "${preview.patch.operation.name}: $path",
+              style = MaterialTheme.typography.labelMedium,
+              fontWeight = FontWeight.SemiBold,
+            )
+          }
           Column(
             modifier = Modifier
               .fillMaxWidth()
@@ -165,7 +216,7 @@ fun AiAssistantScreen(
               .border(1.dp, ideColors.border)
               .padding(6.dp),
           ) {
-            preview.diffLines.filter { it.type != DiffLineType.CONTEXT }.take(14).forEach { dl ->
+            preview.diffLines.filter { it.type != DiffLineType.CONTEXT }.take(12).forEach { dl ->
               val prefix = when (dl.type) {
                 DiffLineType.ADDED -> "+"
                 DiffLineType.REMOVED -> "-"
@@ -186,22 +237,26 @@ fun AiAssistantScreen(
           }
           Spacer(Modifier.height(6.dp))
         }
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
           Button(
-            onClick = onApprovePlan,
-            modifier = Modifier.weight(1f).testTag("agent_approve_apply_btn"),
+            onClick = { onApprovePlan(true) },
+            modifier = Modifier.testTag("agent_approve_apply_btn"),
           ) {
             Icon(Icons.Default.Check, contentDescription = null)
             Spacer(Modifier.width(4.dp))
-            Text("Approve & Apply")
+            Text("Accept All")
           }
           OutlinedButton(
-            onClick = onDiscardPlan,
-            modifier = Modifier.weight(1f),
+            onClick = { onApprovePlan(false) },
+            enabled = state.selectedPatchPaths.isNotEmpty(),
+            modifier = Modifier.testTag("agent_accept_selected_btn"),
           ) {
+            Text("Accept Selected (${state.selectedPatchPaths.size})")
+          }
+          OutlinedButton(onClick = onDiscardPlan) {
             Icon(Icons.Default.Close, contentDescription = null)
             Spacer(Modifier.width(4.dp))
-            Text("Discard")
+            Text("Reject")
           }
         }
       }
@@ -216,7 +271,7 @@ fun AiAssistantScreen(
         item {
           IdePanel(modifier = Modifier.fillMaxWidth()) {
             Text(
-              "Ask the assistant to explain code, generate modules, convert Java to Kotlin, or propose multi-file diffs with checkpoint rollback.",
+              "Ask the assistant to explain code, generate modules, use authorized MCP tools, or propose multi-file diffs with checkpoint rollback.",
               style = MaterialTheme.typography.bodySmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -258,7 +313,7 @@ fun AiAssistantScreen(
           IdePanel(modifier = Modifier.fillMaxWidth()) {
             Text("Streaming response...", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             Spacer(Modifier.height(4.dp))
-            Text(state.streamingReply.ifBlank { "Waiting for tokens..." }, style = MaterialTheme.typography.bodyMedium)
+            Text(state.streamingReply.ifBlank { "Waiting for tokens / tool calls..." }, style = MaterialTheme.typography.bodyMedium)
           }
         }
       }
@@ -300,10 +355,114 @@ fun AiAssistantScreen(
     ConfirmActionDialog(
       title = "Upload Project Context?",
       message =
-        "Sending this prompt in Online mode will transmit relevant source files from '${activeProject?.name}' to ${preferences.onlineProvider.displayName}. Approve project context sharing?",
+        "Sending this prompt will transmit selected source files from '${activeProject?.name}' to the configured online AI provider ($activeModelBadge). Approve project context sharing?",
       confirmLabel = "Allow & Send",
       onConfirm = { onConfirmConsent(state.pendingPromptForConsent) },
       onDismiss = onDismissConsent,
+    )
+  }
+
+  state.pendingToolApproval?.let { approval ->
+    AlertDialog(
+      onDismissRequest = { onResolveToolApproval(false) },
+      title = { Text("Approve Sensitive MCP Tool?") },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          Text("Server: ${approval.serverName}", style = MaterialTheme.typography.titleSmall)
+          Text("Tool: ${approval.toolName}", style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.SemiBold)
+          Text(approval.riskReason, style = MaterialTheme.typography.labelSmall, color = ideColors.warning)
+          Text(
+            approval.argumentsJson,
+            fontFamily = JetBrainsMonoFontFamily,
+            style = MaterialTheme.typography.labelSmall,
+            modifier = Modifier
+              .fillMaxWidth()
+              .background(MaterialTheme.colorScheme.background)
+              .border(1.dp, ideColors.border)
+              .padding(6.dp),
+          )
+        }
+      },
+      confirmButton = {
+        Button(onClick = { onResolveToolApproval(true) }, modifier = Modifier.testTag("mcp_tool_approve_btn")) {
+          Text("Allow Once")
+        }
+      },
+      dismissButton = {
+        TextButton(onClick = { onResolveToolApproval(false) }) { Text("Deny") }
+      },
+    )
+  }
+
+  if (showContextPicker && activeProject != null) {
+    val files = remember(activeProject.id) { selectableContextFiles() }
+    AlertDialog(
+      onDismissRequest = { showContextPicker = false },
+      title = { Text("Select Context Files (${state.selectedContextFiles.size})") },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+          if (files.isEmpty()) {
+            Text("No source files found in workspace.")
+          } else {
+            LazyColumn(modifier = Modifier.height(260.dp)) {
+              items(files) { rel ->
+                Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                  Checkbox(
+                    checked = rel in state.selectedContextFiles,
+                    onCheckedChange = { onToggleContextFile(rel) },
+                  )
+                  Text(rel, style = MaterialTheme.typography.bodySmall)
+                }
+              }
+            }
+          }
+        }
+      },
+      confirmButton = { TextButton(onClick = { showContextPicker = false }) { Text("Done") } },
+      dismissButton = {
+        TextButton(onClick = onClearContextFiles) { Text("Clear Selection") }
+      },
+    )
+  }
+
+  if (showConversationDialog) {
+    var newThreadName by remember { mutableStateOf("") }
+    AlertDialog(
+      onDismissRequest = { showConversationDialog = false },
+      title = { Text("Conversations") },
+      text = {
+        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+          OutlinedTextField(
+            value = newThreadName,
+            onValueChange = { newThreadName = it },
+            label = { Text("New thread name") },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+          )
+          conversations.forEach { conv ->
+            OutlinedButton(
+              onClick = {
+                onSelectConversation(conv)
+                showConversationDialog = false
+              },
+              modifier = Modifier.fillMaxWidth(),
+            ) {
+              Text(if (conv == state.conversationId) "$conv (active)" else conv)
+            }
+          }
+        }
+      },
+      confirmButton = {
+        Button(
+          onClick = {
+            if (newThreadName.isNotBlank()) {
+              onSelectConversation(newThreadName.trim())
+            }
+            showConversationDialog = false
+          },
+        ) { Text("Open / Create") }
+      },
+      dismissButton = { TextButton(onClick = { showConversationDialog = false }) { Text("Close") } },
     )
   }
 

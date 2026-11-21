@@ -69,12 +69,17 @@ data class AiUiState(
   val lastError: String? = null,
   val lastUsage: AiTokenUsage? = null,
   val agentModeEnabled: Boolean = true,
+  val conversationId: String = "default",
+  val selectedContextFiles: Set<String> = emptySet(),
   val pendingPlan: AgentPlan? = null,
   val pendingPreviews: List<PatchPreview> = emptyList(),
+  val selectedPatchPaths: Set<String> = emptySet(),
   val needsOnlineConsentDialog: Boolean = false,
   val pendingPromptForConsent: String? = null,
+  val pendingToolApproval: com.example.mcp.PendingMcpToolApproval? = null,
   val contextFileCount: Int = 0,
   val contextEstimatedTokens: Int = 0,
+  val activeMcpToolCount: Int = 0,
   val statusBanner: String? = null,
 )
 
@@ -83,4 +88,17 @@ data class ProjectsUiState(
   val backupsForSelected: List<BackupRecord> = emptyList(),
   val statusMessage: String? = null,
   val errorMessage: String? = null,
+)
+
+data class DecryptedMappingPreview(
+  val entryId: String,
+  val title: String,
+  val sha256: String,
+  val contentPreview: String,
+)
+
+data class OperationFeedback(
+  val isError: Boolean,
+  val message: String,
+  val timestampMillis: Long = System.currentTimeMillis(),
 )

@@ -7,24 +7,23 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
-import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Menu
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.DrawerValue
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -44,8 +43,8 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDrawerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.style.TextOverflow
@@ -56,12 +55,20 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.example.mcp.McpConnectionStatus
 import com.example.ui.navigation.IdeRoute
 import com.example.ui.screens.AiAssistantScreen
+import com.example.ui.screens.AiProviderManagerScreen
+import com.example.ui.screens.BuildHistoryScreen
 import com.example.ui.screens.BuildManagerScreen
 import com.example.ui.screens.DashboardScreen
 import com.example.ui.screens.EditorScreen
+import com.example.ui.screens.MappingVaultScreen
+import com.example.ui.screens.McpManagerScreen
+import com.example.ui.screens.ModelSelectorScreen
+import com.example.ui.screens.ProjectImportScreen
 import com.example.ui.screens.ProjectsScreen
+import com.example.ui.screens.ProtectionScreen
 import com.example.ui.screens.SdkManagerScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.screens.TerminalScreen
@@ -103,8 +110,32 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
   val buildHistory by vm.buildHistory.collectAsStateWithLifecycle()
   val aiState by vm.aiState.collectAsStateWithLifecycle()
   val aiMessages by vm.aiMessages.collectAsStateWithLifecycle()
+  val aiConversations by vm.aiConversations.collectAsStateWithLifecycle()
   val checkpoints by vm.checkpoints.collectAsStateWithLifecycle()
+
+  val aiProviders by vm.aiProviders.collectAsStateWithLifecycle()
+  val aiModels by vm.aiModels.collectAsStateWithLifecycle()
+  val conversationModels by vm.conversationModels.collectAsStateWithLifecycle()
+  val providerFeedback by vm.providerFeedback.collectAsStateWithLifecycle()
+  val providerTestResults by vm.providerTestResults.collectAsStateWithLifecycle()
+  val modelFeedback by vm.modelFeedback.collectAsStateWithLifecycle()
+
+  val mcpServers by vm.mcpServers.collectAsStateWithLifecycle()
+  val mcpDiscoveredTools by vm.mcpDiscoveredTools.collectAsStateWithLifecycle()
+  val mcpServerLogs by vm.mcpServerLogs.collectAsStateWithLifecycle()
+  val mcpAuditLogs by vm.mcpAuditLogs.collectAsStateWithLifecycle()
+  val mcpFeedback by vm.mcpFeedback.collectAsStateWithLifecycle()
+
+  val protectionProfile by vm.activeProtectionProfile.collectAsStateWithLifecycle()
+  val protectionPlan by vm.protectionPlan.collectAsStateWithLifecycle()
+  val protectionReports by vm.protectionReports.collectAsStateWithLifecycle()
+  val protectionFeedback by vm.protectionFeedback.collectAsStateWithLifecycle()
+  val mappingVaultEntries by vm.mappingVaultEntries.collectAsStateWithLifecycle()
+  val decryptedMappingPreview by vm.decryptedMappingPreview.collectAsStateWithLifecycle()
+
   val sdkPackages by vm.sdkPackages.collectAsStateWithLifecycle()
+  val sdkReachability by vm.sdkReachability.collectAsStateWithLifecycle()
+  val sdkStorageBytes by vm.sdkStorageBytes.collectAsStateWithLifecycle()
   val hardware by vm.hardwareSnapshot.collectAsStateWithLifecycle()
   val projectsUiState by vm.projectsUiState.collectAsStateWithLifecycle()
   val terminalLines by vm.terminalLines.collectAsStateWithLifecycle()
@@ -113,6 +144,33 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
   val terminalHistory by vm.terminalHistory.collectAsStateWithLifecycle()
   val terminalEnv by vm.terminalEnv.collectAsStateWithLifecycle()
   val signingKeyInfo by vm.signingKeyInfo.collectAsStateWithLifecycle()
+
+  val activeConvKey = "${activeProject?.id ?: "global"}::${aiState.conversationId}"
+  val activeModelBadge =
+    remember(aiProviders, aiModels, prefs, aiState.agentModeEnabled, conversationModels, activeConvKey) {
+      val convComposite = conversationModels[activeConvKey]
+      val chosenComposite =
+        convComposite
+          ?: (if (aiState.agentModeEnabled) prefs.agentModelCompositeId else prefs.defaultChatModelCompositeId)
+          ?: prefs.defaultChatModelCompositeId
+      val matchedModel = aiModels.firstOrNull { it.compositeId == chosenComposite }
+      val matchedProvider = aiProviders.firstOrNull { it.id == (matchedModel?.providerId ?: prefs.defaultProviderId) }
+      when {
+        matchedModel != null && matchedProvider != null -> "${matchedProvider.displayName}: ${matchedModel.modelId}"
+        matchedProvider != null -> "${matchedProvider.displayName}: ${matchedProvider.defaultModelId.ifBlank { "default" }}"
+        aiProviders.isEmpty() -> "No AI provider configured"
+        else -> "${aiProviders.first().displayName}: ${aiProviders.first().defaultModelId.ifBlank { "default" }}"
+      }
+    }
+  val connectedMcpCount = remember(mcpServers) { mcpServers.count { it.connectionStatus == McpConnectionStatus.CONNECTED } }
+  val connectedMcpToolsCount =
+    remember(mcpServers, mcpDiscoveredTools) {
+      mcpServers
+        .filter { it.isEnabled && it.connectionStatus == McpConnectionStatus.CONNECTED }
+        .sumOf { srv ->
+          mcpDiscoveredTools[srv.id].orEmpty().count { srv.allowAllTools || it.name in srv.allowedTools }
+        }
+    }
 
   val drawerState = rememberDrawerState(DrawerValue.Closed)
   val scope = rememberCoroutineScope()
@@ -135,23 +193,25 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
   ModalNavigationDrawer(
     drawerState = drawerState,
     drawerContent = {
-      ModalDrawerSheet(modifier = Modifier.width(260.dp)) {
-        Text(
-          "DevForge AI",
-          style = MaterialTheme.typography.headlineSmall,
-          modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-        )
-        IdeRoute.entries.forEach { dest ->
-          NavigationDrawerItem(
-            selected = currentRoute == dest,
-            onClick = {
-              scope.launch { drawerState.close() }
-              navigateTo(dest)
-            },
-            icon = { Icon(dest.icon, contentDescription = null) },
-            label = { Text(dest.label) },
-            modifier = Modifier.padding(horizontal = 8.dp),
+      ModalDrawerSheet(modifier = Modifier.width(270.dp)) {
+        Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+          Text(
+            "DevForge AI",
+            style = MaterialTheme.typography.headlineSmall,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
           )
+          IdeRoute.entries.forEach { dest ->
+            NavigationDrawerItem(
+              selected = currentRoute == dest,
+              onClick = {
+                scope.launch { drawerState.close() }
+                navigateTo(dest)
+              },
+              icon = { Icon(dest.icon, contentDescription = null) },
+              label = { Text(dest.label) },
+              modifier = Modifier.padding(horizontal = 8.dp).testTag("drawer_${dest.route}"),
+            )
+          }
         }
       }
     },
@@ -193,8 +253,8 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
               IconButton(onClick = { navigateTo(IdeRoute.BUILD) }, modifier = Modifier.testTag("topbar_build_btn")) {
                 Icon(Icons.Default.Build, contentDescription = "Build Manager")
               }
-              IconButton(onClick = { navigateTo(IdeRoute.SDK) }, modifier = Modifier.testTag("topbar_sdk_btn")) {
-                Icon(Icons.Default.Extension, contentDescription = "SDK Manager")
+              IconButton(onClick = { navigateTo(IdeRoute.PROTECTION) }, modifier = Modifier.testTag("topbar_protection_btn")) {
+                Icon(Icons.Default.Shield, contentDescription = "Code Protection")
               }
               IconButton(onClick = { navigateTo(IdeRoute.SETTINGS) }, modifier = Modifier.testTag("topbar_settings_btn")) {
                 Icon(Icons.Default.Settings, contentDescription = "Settings")
@@ -227,7 +287,10 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
           if (useRail) {
             NavigationRail(
               containerColor = MaterialTheme.colorScheme.surface,
-              modifier = Modifier.fillMaxHeight().border(1.dp, LocalIdeColors.current.border),
+              modifier = Modifier
+                .fillMaxHeight()
+                .border(1.dp, LocalIdeColors.current.border)
+                .verticalScroll(rememberScrollState()),
             ) {
               IdeRoute.entries.forEach { dest ->
                 NavigationRailItem(
@@ -252,6 +315,8 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
                   sdkPackages = sdkPackages,
                   hardware = hardware,
                   preferences = prefs,
+                  activeProviderLabel = activeModelBadge,
+                  connectedMcpCount = connectedMcpCount,
                   onNavigate = ::navigateTo,
                   onOpenProject = vm::openProject,
                   onRefreshHardware = vm::refreshHardwareSnapshot,
@@ -276,6 +341,16 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
                   onRestoreBackup = vm::restoreBackup,
                   onLoadBackups = vm::loadBackups,
                   onClearBanner = vm::clearProjectBanner,
+                  onOpenImportScreen = { navigateTo(IdeRoute.PROJECT_IMPORT) },
+                )
+              }
+              composable(IdeRoute.PROJECT_IMPORT.route) {
+                ProjectImportScreen(
+                  uiState = projectsUiState,
+                  onImportZip = vm::importProjectZip,
+                  onCreateProject = vm::createProject,
+                  onClearBanner = vm::clearProjectBanner,
+                  onOpenEditor = { navigateTo(IdeRoute.EDITOR) },
                 )
               }
               composable(IdeRoute.EDITOR.route) {
@@ -315,17 +390,79 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
                   state = aiState,
                   activeProject = activeProject,
                   messages = aiMessages,
+                  conversations = aiConversations,
                   checkpoints = checkpoints,
-                  preferences = prefs,
+                  activeModelBadge = activeModelBadge,
+                  connectedMcpToolCount = connectedMcpToolsCount,
+                  selectableContextFiles = vm::listSelectableContextFiles,
                   onSendMessage = vm::sendAiMessage,
                   onCancelGeneration = vm.aiController::cancelGeneration,
                   onToggleAgentMode = vm.aiController::setAgentMode,
+                  onSelectConversation = vm.aiController::selectConversation,
+                  onToggleContextFile = vm.aiController::toggleContextFile,
+                  onClearContextFiles = vm.aiController::clearSelectedContextFiles,
+                  onTogglePatchFile = vm.aiController::togglePatchFileSelection,
+                  onSelectAllPatchFiles = vm.aiController::selectAllPatchFiles,
                   onApprovePlan = vm::applyPendingAiPlan,
                   onDiscardPlan = vm.aiController::discardPendingPlan,
+                  onResolveToolApproval = vm.aiController::resolvePendingToolApproval,
                   onRollbackCheckpoint = vm::rollbackCheckpoint,
                   onClearChat = { vm.aiController.clearChat(activeProject?.id) },
                   onConfirmConsent = vm::confirmAiOnlineConsent,
                   onDismissConsent = vm.aiController::dismissConsentDialog,
+                  onOpenModelSelector = { navigateTo(IdeRoute.MODEL_SELECTOR) },
+                  onOpenMcpManager = { navigateTo(IdeRoute.MCP_MANAGER) },
+                )
+              }
+              composable(IdeRoute.AI_PROVIDERS.route) {
+                AiProviderManagerScreen(
+                  providers = aiProviders,
+                  preferences = prefs,
+                  feedback = providerFeedback,
+                  testResults = providerTestResults,
+                  onSaveProvider = vm::saveAiProvider,
+                  onSetProviderEnabled = vm::setProviderEnabled,
+                  onDeleteProvider = vm::deleteAiProvider,
+                  onClearApiKey = vm::clearProviderApiKey,
+                  onTestConnection = vm::testAiProviderConnection,
+                  onDiscoverModels = vm::discoverProviderModels,
+                  onSetDefaultProvider = vm::setDefaultChatModel,
+                  onOpenModelSelector = { navigateTo(IdeRoute.MODEL_SELECTOR) },
+                )
+              }
+              composable(IdeRoute.MODEL_SELECTOR.route) {
+                ModelSelectorScreen(
+                  providers = aiProviders,
+                  models = aiModels,
+                  preferences = prefs,
+                  activeConversationKey = activeConvKey,
+                  conversationModels = conversationModels,
+                  feedback = modelFeedback,
+                  onDiscoverModels = vm::discoverProviderModels,
+                  onAddManualModel = vm::addOrUpdateManualModel,
+                  onVerifyModel = vm::verifyModel,
+                  onDeleteModel = vm::deleteModel,
+                  onSetDefaultChatModel = vm::setDefaultChatModel,
+                  onSetAgentModel = vm::setAgentModel,
+                  onSetConversationModel = vm::setConversationModel,
+                )
+              }
+              composable(IdeRoute.MCP_MANAGER.route) {
+                McpManagerScreen(
+                  servers = mcpServers,
+                  discoveredTools = mcpDiscoveredTools,
+                  serverLogs = mcpServerLogs,
+                  auditLogs = mcpAuditLogs,
+                  feedback = mcpFeedback,
+                  onSaveServer = vm::saveMcpServer,
+                  onSetServerEnabled = vm::setMcpServerEnabled,
+                  onDeleteServer = vm::deleteMcpServer,
+                  onConnect = vm::connectMcpServer,
+                  onDisconnect = vm::disconnectMcpServer,
+                  onTestConnection = vm::testMcpServer,
+                  onRefreshTools = vm::refreshMcpTools,
+                  onSetToolPermission = vm::setMcpToolPermission,
+                  onSetAllowAllTools = vm::setMcpAllowAllTools,
                 )
               }
               composable(IdeRoute.TERMINAL.route) {
@@ -353,33 +490,76 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
                   onSelectVariant = vm::selectBuildVariant,
                   onSetSignRelease = vm::setSignRelease,
                   onRunBuild = vm::runBuild,
+                  onEnqueueBackgroundBuild = vm::enqueueBackgroundBuild,
                   onCancelBuild = vm::cancelBuild,
                   onOpenWebPreview = vm::openWebPreview,
                   onCloseWebPreview = vm::closeWebPreview,
                   onExportArtifact = vm::exportArtifactToUri,
+                  onNavigateToFileLine = { file, line ->
+                    vm.openFileAtLine(file, line)
+                    navigateTo(IdeRoute.EDITOR)
+                  },
+                  onOpenProtection = { navigateTo(IdeRoute.PROTECTION) },
+                  onOpenBuildHistory = { navigateTo(IdeRoute.BUILD_HISTORY) },
+                )
+              }
+              composable(IdeRoute.BUILD_HISTORY.route) {
+                BuildHistoryScreen(
+                  history = buildHistory,
+                  onNavigateToFileLine = { file, line ->
+                    vm.openFileAtLine(file, line)
+                    navigateTo(IdeRoute.EDITOR)
+                  },
                 )
               }
               composable(IdeRoute.SDK.route) {
                 SdkManagerScreen(
                   packages = sdkPackages,
                   hardware = hardware,
+                  sdkStorageBytes = sdkStorageBytes,
+                  reachabilityMap = sdkReachability,
                   onInstall = vm::installSdkPackage,
                   onCancelDownload = vm::cancelSdkDownload,
                   onUninstall = vm::uninstallSdkPackage,
+                  onCheckReachability = vm::checkSdkPackageReachability,
                   onRefreshHardware = vm::refreshHardwareSnapshot,
+                )
+              }
+              composable(IdeRoute.PROTECTION.route) {
+                ProtectionScreen(
+                  activeProject = activeProject,
+                  savedProfile = protectionProfile,
+                  plan = protectionPlan,
+                  reports = protectionReports,
+                  feedback = protectionFeedback,
+                  onRefreshPlan = { vm.refreshProtectionPlan() },
+                  onSaveProfile = vm::saveProtectionProfile,
+                  onOpenMappingVault = { navigateTo(IdeRoute.MAPPING_VAULT) },
+                )
+              }
+              composable(IdeRoute.MAPPING_VAULT.route) {
+                MappingVaultScreen(
+                  entries = mappingVaultEntries,
+                  decryptedPreview = decryptedMappingPreview,
+                  feedback = protectionFeedback,
+                  onDecryptAndPreview = vm::readDecryptedMapping,
+                  onDismissPreview = vm::dismissMappingPreview,
+                  onDeleteEntry = vm::deleteMappingEntry,
                 )
               }
               composable(IdeRoute.SETTINGS.route) {
                 SettingsScreen(
                   preferences = prefs,
+                  providerCount = aiProviders.size,
+                  mcpServerCount = mcpServers.size,
                   signingKeyInfo = signingKeyInfo,
                   onSetDarkTheme = vm::setDarkTheme,
                   onSaveEditorSettings = vm::updateEditorSettings,
-                  onSaveOnlineConfig = vm::saveOnlineAiConfig,
-                  onClearApiKey = vm::clearApiKey,
                   onSetAllowCodeUpload = vm::setAllowCodeUpload,
+                  onSetAutoFallback = vm::setAutoFallback,
                   onSaveCustomToolchainPath = vm::setCustomToolchainPath,
                   onEnsureSigningKey = vm::ensureSigningKey,
+                  onNavigate = ::navigateTo,
                 )
               }
             }

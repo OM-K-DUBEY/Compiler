@@ -4,6 +4,9 @@ import android.content.Context
 import com.example.ai.CodingAgentEngine
 import com.example.ai.OnlineAiClient
 import com.example.ai.ProjectContextManager
+import com.example.ai.provider.AIModelRegistry
+import com.example.ai.provider.AIProviderRegistry
+import com.example.ai.provider.AITransport
 import com.example.compiler.BuildManager
 import com.example.core.common.AppDispatchers
 import com.example.core.common.DeviceInfoProvider
@@ -13,6 +16,10 @@ import com.example.core.security.AndroidKeyStoreSecretManager
 import com.example.core.security.KeystoreSigningManager
 import com.example.core.storage.ProjectWorkspaceManager
 import com.example.core.storage.ZipArchiveManager
+import com.example.mcp.McpClientManager
+import com.example.protection.ProtectionPipeline
+import com.example.protection.ProtectionProfileManager
+import com.example.protection.SymbolAndMappingVault
 import com.example.sdk.SdkManagerRepository
 import com.example.terminal.TerminalSessionManager
 import java.util.concurrent.TimeUnit
@@ -54,12 +61,37 @@ class AppContainer(context: Context) {
       dispatchers = dispatchers,
     )
 
+  val symbolAndMappingVault =
+    SymbolAndMappingVault(
+      context = appContext,
+      mappingVaultDao = database.mappingVaultDao(),
+      secretCipher = secretManager,
+      dispatchers = dispatchers,
+    )
+
+  val protectionProfileManager =
+    ProtectionProfileManager(
+      profileDao = database.protectionProfileDao(),
+      dispatchers = dispatchers,
+    )
+
+  val protectionPipeline =
+    ProtectionPipeline(
+      sdkManagerRepository = sdkManagerRepository,
+      profileManager = protectionProfileManager,
+      mappingVault = symbolAndMappingVault,
+      reportDao = database.buildProtectionReportDao(),
+      dispatchers = dispatchers,
+    )
+
   val buildManager =
     BuildManager(
       buildHistoryDao = database.buildHistoryDao(),
       sdkManagerRepository = sdkManagerRepository,
       zipArchiveManager = zipArchiveManager,
       signingManager = signingManager,
+      deviceInfoProvider = deviceInfoProvider,
+      protectionPipeline = protectionPipeline,
       dispatchers = dispatchers,
     )
 
@@ -69,7 +101,33 @@ class AppContainer(context: Context) {
       dispatchers = dispatchers,
     )
 
-  val onlineAiClient = OnlineAiClient(okHttpClient, dispatchers)
+  val aiTransport = AITransport(okHttpClient, dispatchers)
+  val aiProviderRegistry =
+    AIProviderRegistry(
+      aiProviderDao = database.aiProviderDao(),
+      aiModelDao = database.aiModelDao(),
+      secretCipher = secretManager,
+      preferencesRepository = preferencesRepository,
+      transport = aiTransport,
+      dispatchers = dispatchers,
+    )
+  val aiModelRegistry =
+    AIModelRegistry(
+      aiModelDao = database.aiModelDao(),
+      providerRegistry = aiProviderRegistry,
+      dispatchers = dispatchers,
+    )
+
+  val mcpClientManager =
+    McpClientManager(
+      mcpServerDao = database.mcpServerDao(),
+      auditLogDao = database.mcpAuditLogDao(),
+      secretCipher = secretManager,
+      okHttpClient = okHttpClient,
+      dispatchers = dispatchers,
+    )
+
+  val onlineAiClient = OnlineAiClient(aiProviderRegistry, dispatchers)
   val projectContextManager = ProjectContextManager(workspaceManager)
   val codingAgentEngine =
     CodingAgentEngine(

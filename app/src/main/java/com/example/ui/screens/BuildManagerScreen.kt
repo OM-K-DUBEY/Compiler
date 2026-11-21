@@ -47,6 +47,7 @@ import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
+import androidx.compose.foundation.clickable
 import com.example.compiler.BuildStatus
 import com.example.compiler.BuildSystemType
 import com.example.compiler.BuildVariant
@@ -75,10 +76,14 @@ fun BuildManagerScreen(
   onSelectVariant: (BuildVariant) -> Unit,
   onSetSignRelease: (Boolean) -> Unit,
   onRunBuild: () -> Unit,
+  onEnqueueBackgroundBuild: () -> Unit,
   onCancelBuild: () -> Unit,
   onOpenWebPreview: () -> Unit,
   onCloseWebPreview: () -> Unit,
   onExportArtifact: (String, Uri) -> Unit,
+  onNavigateToFileLine: (String, Int) -> Unit,
+  onOpenProtection: () -> Unit,
+  onOpenBuildHistory: () -> Unit,
 ) {
   val context = LocalContext.current
   val ideColors = LocalIdeColors.current
@@ -102,8 +107,13 @@ fun BuildManagerScreen(
         IdeSectionHeader(
           title = "BUILD CONFIGURATION",
           trailing = {
-            IconButton(onClick = onRefreshDetection) {
-              Icon(Icons.Default.Refresh, contentDescription = "Re-detect build systems")
+            Row(verticalAlignment = Alignment.CenterVertically) {
+              OutlinedButton(onClick = onOpenProtection, modifier = Modifier.testTag("build_open_protection_btn")) {
+                Text("Protection")
+              }
+              IconButton(onClick = onRefreshDetection) {
+                Icon(Icons.Default.Refresh, contentDescription = "Re-detect build systems")
+              }
             }
           },
         )
@@ -137,10 +147,10 @@ fun BuildManagerScreen(
           }
 
           Spacer(Modifier.height(8.dp))
-          Row(
+          FlowRow(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp),
           ) {
             BuildVariant.entries.forEach { variant ->
               FilterChip(
@@ -149,19 +159,21 @@ fun BuildManagerScreen(
                 label = { Text(variant.label) },
               )
             }
-            Spacer(Modifier.weight(1f))
-            if (buildState.selectedVariant == BuildVariant.RELEASE) {
-              Text("Sign", style = MaterialTheme.typography.labelSmall)
-              Switch(checked = buildState.signRelease, onCheckedChange = onSetSignRelease)
+            if (buildState.selectedVariant == BuildVariant.RELEASE || buildState.selectedVariant == BuildVariant.RELEASE_AAB) {
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Sign", style = MaterialTheme.typography.labelSmall)
+                Spacer(Modifier.width(4.dp))
+                Switch(checked = buildState.signRelease, onCheckedChange = onSetSignRelease)
+              }
             }
           }
 
           Spacer(Modifier.height(10.dp))
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
             if (isBuilding) {
               Button(
                 onClick = onCancelBuild,
-                modifier = Modifier.weight(1f).testTag("cancel_build_btn"),
+                modifier = Modifier.testTag("cancel_build_btn"),
               ) {
                 Icon(Icons.Default.Stop, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
@@ -171,11 +183,18 @@ fun BuildManagerScreen(
               Button(
                 onClick = onRunBuild,
                 enabled = buildState.selectedSystem != null,
-                modifier = Modifier.weight(1f).testTag("run_build_btn"),
+                modifier = Modifier.testTag("run_build_btn"),
               ) {
                 Icon(Icons.Default.Build, contentDescription = null)
                 Spacer(Modifier.width(6.dp))
                 Text("Build Project")
+              }
+              OutlinedButton(
+                onClick = onEnqueueBackgroundBuild,
+                enabled = buildState.selectedSystem != null,
+                modifier = Modifier.testTag("bg_build_btn"),
+              ) {
+                Text("Queue Background")
               }
             }
             if (BuildSystemType.WEB_STATIC in buildState.detectedSystems) {
@@ -223,6 +242,39 @@ fun BuildManagerScreen(
             Text(reason, style = MaterialTheme.typography.bodySmall, color = ideColors.warning)
           }
 
+          result.protectionReport?.let { rep ->
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+              StatusPill(
+                text = if (rep.artifactLeakCheckPassed) "NO LEAKS" else "LEAK FOUND",
+                color = if (rep.artifactLeakCheckPassed) ideColors.success else MaterialTheme.colorScheme.error,
+              )
+              Text(rep.summaryText, style = MaterialTheme.typography.labelSmall, modifier = Modifier.weight(1f))
+            }
+          }
+
+          if (result.diagnostics.isNotEmpty()) {
+            Spacer(Modifier.height(8.dp))
+            Text("Classified Diagnostics (${result.diagnostics.size})", style = MaterialTheme.typography.labelMedium)
+            result.diagnostics.take(8).forEach { diag ->
+              Column(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .padding(vertical = 3.dp)
+                  .background(MaterialTheme.colorScheme.background)
+                  .border(1.dp, ideColors.border)
+                  .let { mod ->
+                    if (diag.filePath != null) mod.clickable { onNavigateToFileLine(diag.filePath, diag.line ?: 1) }
+                    else mod
+                  }
+                  .padding(6.dp),
+              ) {
+                Text("${diag.category.label}: ${diag.suggestedFix}", style = MaterialTheme.typography.labelSmall, color = ideColors.warning)
+                Text(diag.rawExcerpt, fontFamily = JetBrainsMonoFontFamily, style = MaterialTheme.typography.labelSmall)
+              }
+            }
+          }
+
           if (result.artifacts.isNotEmpty()) {
             Spacer(Modifier.height(8.dp))
             Text("Verified Output Artifacts", style = MaterialTheme.typography.labelMedium)
@@ -233,7 +285,13 @@ fun BuildManagerScreen(
                 verticalAlignment = Alignment.CenterVertically,
               ) {
                 Column(modifier = Modifier.weight(1f)) {
-                  Text(art.name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                  Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text(art.name, style = MaterialTheme.typography.bodySmall, fontWeight = FontWeight.Medium)
+                    StatusPill(
+                      text = if (art.isVerifiedClean) "CLEAN" else "WARNING",
+                      color = if (art.isVerifiedClean) ideColors.success else MaterialTheme.colorScheme.error,
+                    )
+                  }
                   Text(
                     "${art.kind} • ${Formatters.formatBytes(art.sizeBytes)} • ${if (art.isSigned) "RSA-Signed" else "Unsigned"}",
                     style = MaterialTheme.typography.labelSmall,
@@ -307,7 +365,14 @@ fun BuildManagerScreen(
     }
 
     if (history.isNotEmpty()) {
-      item { IdeSectionHeader(title = "BUILD HISTORY (${history.size})") }
+      item {
+        IdeSectionHeader(
+          title = "BUILD HISTORY (${history.size})",
+          trailing = {
+            OutlinedButton(onClick = onOpenBuildHistory) { Text("Full History") }
+          },
+        )
+      }
       items(history.take(10), key = { it.id }) { item ->
         IdePanel(modifier = Modifier.fillMaxWidth()) {
           Row(

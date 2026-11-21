@@ -51,9 +51,12 @@ import com.example.ui.theme.LocalIdeColors
 fun SdkManagerScreen(
   packages: List<SdkPackageUiState>,
   hardware: DeviceHardwareSnapshot,
+  sdkStorageBytes: Long,
+  reachabilityMap: Map<String, String>,
   onInstall: (SdkPackageSpec) -> Unit,
   onCancelDownload: (String) -> Unit,
   onUninstall: (String) -> Unit,
+  onCheckReachability: (SdkPackageSpec) -> Unit,
   onRefreshHardware: () -> Unit,
 ) {
   val ideColors = LocalIdeColors.current
@@ -80,7 +83,7 @@ fun SdkManagerScreen(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-          "Free Storage: ${Formatters.formatBytes(hardware.availableStorageBytes)} / ${Formatters.formatBytes(hardware.totalStorageBytes)}",
+          "SDK Cache Used: ${Formatters.formatBytes(sdkStorageBytes)} • Free Storage: ${Formatters.formatBytes(hardware.availableStorageBytes)} / ${Formatters.formatBytes(hardware.totalStorageBytes)}",
           style = MaterialTheme.typography.bodyMedium,
         )
         Text(
@@ -145,6 +148,14 @@ fun SdkManagerScreen(
           Spacer(Modifier.height(4.dp))
           Text("System binary: $path", style = MaterialTheme.typography.labelSmall, color = ideColors.success)
         }
+        item.recordedSha256?.takeIf { it.isNotBlank() }?.let { sha ->
+          Spacer(Modifier.height(4.dp))
+          Text("SHA-256: $sha", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        reachabilityMap[spec.id]?.let { reach ->
+          Spacer(Modifier.height(4.dp))
+          Text("Remote check: $reach", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+        }
 
         Spacer(Modifier.height(8.dp))
         if (item.isDownloading) {
@@ -166,7 +177,7 @@ fun SdkManagerScreen(
             }
           }
         } else {
-          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+          FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             if (!item.isInstalledLocally) {
               Button(
                 onClick = { onInstall(spec) },
@@ -185,6 +196,9 @@ fun SdkManagerScreen(
                 Spacer(Modifier.width(4.dp))
                 Text("Remove", color = MaterialTheme.colorScheme.error)
               }
+            }
+            OutlinedButton(onClick = { onCheckReachability(spec) }) {
+              Text("Check Mirror")
             }
           }
         }

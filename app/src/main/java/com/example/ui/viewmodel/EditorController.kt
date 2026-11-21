@@ -161,6 +161,69 @@ class EditorController(
     }
   }
 
+  fun openFileAtLine(relativePath: String, line: Int) {
+    val project = _state.value.activeProject ?: return
+    val cleanRel = relativePath.removePrefix("./").trimStart('/')
+    val tabId = "${project.id}::$cleanRel"
+    val existing = _state.value.openTabs.firstOrNull { it.id == tabId }
+    if (existing != null) {
+      val offset = lineStartOffset(existing.content, line)
+      val updated = existing.copy(cursorOffset = offset)
+      _state.update { s ->
+        s.copy(
+          openTabs = s.openTabs.map { if (it.id == tabId) updated else it },
+          activeTabId = tabId,
+          diagnostics = DiagnosticsEngine.analyze(updated.relativePath, updated.content),
+          foldRegions = CodeFoldingEngine.detectFoldRegions(updated.content),
+          statusBanner = "Jumped to $cleanRel:$line",
+        )
+      }
+      return
+    }
+
+    scope.launch {
+      val root = File(project.rootPath)
+      runCatching { workspaceManager.readFileText(root, cleanRel) }
+        .onSuccess { text ->
+          val offset = lineStartOffset(text, line)
+          val newTab =
+            OpenEditorTab(
+              id = tabId,
+              relativePath = cleanRel,
+              fileName = File(cleanRel).name,
+              language = CodeLanguage.fromFileName(cleanRel),
+              content = text,
+              savedContent = text,
+              cursorOffset = offset,
+            )
+          _state.update { s ->
+            s.copy(
+              openTabs = s.openTabs + newTab,
+              activeTabId = newTab.id,
+              diagnostics = DiagnosticsEngine.analyze(newTab.relativePath, newTab.content),
+              foldRegions = CodeFoldingEngine.detectFoldRegions(newTab.content),
+              completions = emptyList(),
+              statusBanner = "Opened $cleanRel:$line",
+            )
+          }
+          persistTabRecovery(project.id, newTab, _state.value.openTabs.lastIndex.coerceAtLeast(0))
+        }.onFailure { err ->
+          _state.update { it.copy(statusBanner = err.message ?: "Unable to open $cleanRel") }
+        }
+    }
+  }
+
+  private fun lineStartOffset(text: String, targetLine: Int): Int {
+    if (targetLine <= 1) return 0
+    var line = 1
+    var idx = 0
+    while (idx < text.length && line < targetLine) {
+      if (text[idx] == '\n') line++
+      idx++
+    }
+    return idx.coerceIn(0, text.length)
+  }
+
   fun selectTab(tabId: String) {
     val tab = _state.value.openTabs.firstOrNull { it.id == tabId } ?: return
     _state.update {

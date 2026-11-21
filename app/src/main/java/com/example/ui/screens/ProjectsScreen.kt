@@ -83,6 +83,7 @@ fun ProjectsScreen(
   onRestoreBackup: (ProjectEntity, File) -> Unit,
   onLoadBackups: (String) -> Unit,
   onClearBanner: () -> Unit,
+  onOpenImportScreen: () -> Unit,
 ) {
   val context = LocalContext.current
   val ideColors = LocalIdeColors.current
@@ -140,6 +141,12 @@ fun ProjectsScreen(
           Icon(Icons.Default.FileUpload, contentDescription = null)
           Spacer(Modifier.width(6.dp))
           Text("Import ZIP")
+        }
+        OutlinedButton(
+          onClick = onOpenImportScreen,
+          modifier = Modifier.testTag("open_project_import_screen_btn"),
+        ) {
+          Text("Wizard")
         }
       }
     }

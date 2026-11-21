@@ -58,6 +58,8 @@ fun DashboardScreen(
   sdkPackages: List<SdkPackageUiState>,
   hardware: DeviceHardwareSnapshot,
   preferences: IdePreferences,
+  activeProviderLabel: String,
+  connectedMcpCount: Int,
   onNavigate: (IdeRoute) -> Unit,
   onOpenProject: (String) -> Unit,
   onRefreshHardware: () -> Unit,
@@ -90,13 +92,21 @@ fun DashboardScreen(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
           Spacer(Modifier.height(10.dp))
-          Button(
-            onClick = { onNavigate(IdeRoute.PROJECTS) },
-            modifier = Modifier.testTag("dashboard_open_projects_btn"),
-          ) {
-            Icon(Icons.Default.FolderOpen, contentDescription = null)
-            Spacer(Modifier.width(8.dp))
-            Text("Create or Import Project")
+          Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Button(
+              onClick = { onNavigate(IdeRoute.PROJECTS) },
+              modifier = Modifier.testTag("dashboard_open_projects_btn"),
+            ) {
+              Icon(Icons.Default.FolderOpen, contentDescription = null)
+              Spacer(Modifier.width(8.dp))
+              Text("Projects")
+            }
+            OutlinedButton(
+              onClick = { onNavigate(IdeRoute.PROJECT_IMPORT) },
+              modifier = Modifier.testTag("dashboard_open_import_btn"),
+            ) {
+              Text("Import ZIP / Template")
+            }
           }
         } else {
           Text(
@@ -157,6 +167,12 @@ fun DashboardScreen(
               Spacer(Modifier.width(6.dp))
               Text("AI Agent")
             }
+            OutlinedButton(
+              onClick = { onNavigate(IdeRoute.PROTECTION) },
+              modifier = Modifier.testTag("dashboard_open_protection_btn"),
+            ) {
+              Text("Protection")
+            }
           }
         }
       }
@@ -192,22 +208,19 @@ fun DashboardScreen(
         Spacer(Modifier.height(8.dp))
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
           Column(modifier = Modifier.weight(1f)) {
-            Text("AI Provider", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            Text(
-              "${preferences.onlineProvider.displayName} (${preferences.onlineModelId.ifBlank { "default" }})",
-              style = MaterialTheme.typography.bodyMedium,
-            )
+            Text("Active AI Engine", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(activeProviderLabel, style = MaterialTheme.typography.bodyMedium)
           }
           Column(modifier = Modifier.weight(1f)) {
-            Text("Toolchains", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("MCP & Toolchains", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             Text(
-              "$installedToolCount detected / ${sdkPackages.size} cataloged",
+              "$connectedMcpCount MCP active • $installedToolCount/${sdkPackages.size} SDKs",
               style = MaterialTheme.typography.bodyMedium,
             )
           }
         }
         Spacer(Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
           StatusPill(
             text = if (hardware.isOnline) "Network: Online" else "Network: Offline",
             color = if (hardware.isOnline) ideColors.success else ideColors.warning,
@@ -216,6 +229,12 @@ fun DashboardScreen(
             text = "Android ${hardware.androidRelease} (API ${hardware.androidSdkInt})",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
+          OutlinedButton(onClick = { onNavigate(IdeRoute.AI_PROVIDERS) }) {
+            Text("AI Providers")
+          }
+          OutlinedButton(onClick = { onNavigate(IdeRoute.MCP_MANAGER) }) {
+            Text("MCP")
+          }
           OutlinedButton(onClick = { onNavigate(IdeRoute.SDK) }) {
             Icon(Icons.Default.Extension, contentDescription = null)
             Spacer(Modifier.width(4.dp))
