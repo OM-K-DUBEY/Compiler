@@ -1,0 +1,6 @@
+{
+  "name": "DevForge AI",
+  "description": "Local-first Android IDE with multi-language editor, project manager, real terminal, build adapters, SDK manager, and AI coding agent.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
