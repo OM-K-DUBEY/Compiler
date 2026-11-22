@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -19,8 +22,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Build
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.OpenInBrowser
 import androidx.compose.material.icons.filled.Refresh
@@ -161,7 +167,7 @@ fun BuildManagerScreen(
             }
             if (buildState.selectedVariant == BuildVariant.RELEASE || buildState.selectedVariant == BuildVariant.RELEASE_AAB) {
               Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("Sign", style = MaterialTheme.typography.labelSmall)
+                Text("Sign Output", style = MaterialTheme.typography.labelSmall)
                 Spacer(Modifier.width(4.dp))
                 Switch(checked = buildState.signRelease, onCheckedChange = onSetSignRelease)
               }
@@ -331,8 +337,21 @@ fun BuildManagerScreen(
     }
 
     item {
+      val textToShow = liveLogs.ifBlank { "Run a build to inspect real compiler or static pre-flight logs." }
       IdePanel(modifier = Modifier.fillMaxWidth()) {
-        IdeSectionHeader(title = "COMPILER & PRE-FLIGHT OUTPUT")
+        IdeSectionHeader(
+          title = "COMPILER & PRE-FLIGHT OUTPUT",
+          trailing = {
+            IconButton(
+              onClick = {
+                val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+                cb?.setPrimaryClip(ClipData.newPlainText("DevForge Build Logs", textToShow))
+              },
+            ) {
+              Icon(Icons.Default.ContentCopy, contentDescription = "Copy build logs")
+            }
+          },
+        )
         Spacer(Modifier.height(6.dp))
         Column(
           modifier = Modifier
@@ -340,25 +359,23 @@ fun BuildManagerScreen(
             .height(210.dp)
             .background(MaterialTheme.colorScheme.background)
             .border(1.dp, ideColors.border)
+            .verticalScroll(rememberScrollState())
             .padding(8.dp),
         ) {
-          val textToShow = liveLogs.ifBlank { "Run a build to inspect real compiler or static pre-flight logs." }
-          LazyColumn {
-            items(textToShow.lines()) { line ->
-              val color =
-                when {
-                  line.contains("[ERROR]") || line.contains("error:") -> MaterialTheme.colorScheme.error
-                  line.contains("[WARNING]") || line.contains("UNAVAILABLE") -> ideColors.warning
-                  line.contains("succeeded") -> ideColors.success
-                  else -> MaterialTheme.colorScheme.onBackground
-                }
-              Text(
-                line,
-                fontFamily = JetBrainsMonoFontFamily,
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-              )
-            }
+          textToShow.lines().forEach { line ->
+            val color =
+              when {
+                line.contains("[ERROR]") || line.contains("error:") -> MaterialTheme.colorScheme.error
+                line.contains("[WARNING]") || line.contains("UNAVAILABLE") -> ideColors.warning
+                line.contains("succeeded") -> ideColors.success
+                else -> MaterialTheme.colorScheme.onBackground
+              }
+            Text(
+              line,
+              fontFamily = JetBrainsMonoFontFamily,
+              style = MaterialTheme.typography.labelSmall,
+              color = color,
+            )
           }
         }
       }

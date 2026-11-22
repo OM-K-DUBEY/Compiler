@@ -25,6 +25,8 @@ import androidx.compose.material.icons.filled.Link
 import androidx.compose.material.icons.filled.LinkOff
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -47,6 +49,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.core.common.Formatters
 import com.example.core.database.McpAuditLogEntity
@@ -404,6 +407,7 @@ private fun McpServerEditorDialog(
   var authType by remember(existing) { mutableStateOf(existing?.authType ?: McpAuthType.NONE) }
   var token by remember { mutableStateOf("") }
   var clearTok by remember { mutableStateOf(false) }
+  var showToken by remember { mutableStateOf(false) }
   var headersText by remember(existing) {
     mutableStateOf(existing?.customHeaders?.entries?.joinToString("\n") { "${it.key}: ${it.value}" }.orEmpty())
   }
@@ -486,14 +490,30 @@ private fun McpServerEditorDialog(
             },
             label = {
               Text(
-                if (existing?.hasToken == true) "Token (Encrypted — enter to replace)"
-                else "Bearer Token / API Key"
+                when {
+                  clearTok -> "Stored token will be cleared on Save"
+                  existing?.hasToken == true -> "Token (Encrypted — enter to replace)"
+                  else -> "Bearer Token / API Key"
+                }
               )
             },
-            visualTransformation = PasswordVisualTransformation(),
+            visualTransformation = if (showToken) VisualTransformation.None else PasswordVisualTransformation(),
+            trailingIcon = {
+              IconButton(onClick = { showToken = !showToken }) {
+                Icon(
+                  imageVector = if (showToken) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                  contentDescription = if (showToken) "Hide token" else "Show token",
+                )
+              }
+            },
             singleLine = true,
             modifier = Modifier.fillMaxWidth(),
           )
+          if (existing?.hasToken == true) {
+            TextButton(onClick = { clearTok = !clearTok; if (clearTok) token = "" }) {
+              Text(if (clearTok) "Undo Clear Stored Token" else "Clear Stored Token")
+            }
+          }
         }
         OutlinedTextField(
           value = headersText,

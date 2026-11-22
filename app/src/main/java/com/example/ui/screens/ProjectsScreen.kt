@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -289,8 +290,9 @@ fun ProjectsScreen(
       },
       confirmButton = {
         TextButton(
+          enabled = newName.isNotBlank(),
           onClick = {
-            onRenameProject(target.id, newName)
+            onRenameProject(target.id, newName.trim())
             renameTarget = null
           },
         ) { Text("Save") }
@@ -318,6 +320,8 @@ fun ProjectsScreen(
     BackupsDialog(
       project = target,
       backups = uiState.backupsForSelected.filter { it.projectId == target.id },
+      statusMessage = uiState.statusMessage,
+      errorMessage = uiState.errorMessage,
       onCreateBackup = { onCreateBackup(target) },
       onRestoreBackup = { backup -> onRestoreBackup(target, backup.file) },
       onDismiss = { backupsTarget = null },
@@ -383,7 +387,8 @@ private fun CreateProjectDialog(
     },
     confirmButton = {
       Button(
-        onClick = { onCreate(name, packageName, template) },
+        enabled = name.isNotBlank(),
+        onClick = { onCreate(name.trim(), packageName.trim(), template) },
         modifier = Modifier.testTag("confirm_create_project_btn"),
       ) { Text("Create") }
     },
@@ -397,10 +402,13 @@ private fun CreateProjectDialog(
 private fun BackupsDialog(
   project: ProjectEntity,
   backups: List<BackupRecord>,
+  statusMessage: String?,
+  errorMessage: String?,
   onCreateBackup: () -> Unit,
   onRestoreBackup: (BackupRecord) -> Unit,
   onDismiss: () -> Unit,
 ) {
+  val ideColors = LocalIdeColors.current
   AlertDialog(
     onDismissRequest = onDismiss,
     title = { Text("Backups — ${project.name}") },
@@ -411,28 +419,40 @@ private fun BackupsDialog(
           Spacer(Modifier.width(6.dp))
           Text("Create SHA-256 Snapshot")
         }
+        if (errorMessage != null || statusMessage != null) {
+          Text(
+            text = errorMessage ?: statusMessage.orEmpty(),
+            style = MaterialTheme.typography.labelSmall,
+            color = if (errorMessage != null) MaterialTheme.colorScheme.error else ideColors.success,
+          )
+        }
         IdeSectionHeader(title = "LOCAL SNAPSHOTS (${backups.size})")
         if (backups.isEmpty()) {
           Text("No backups yet for this project.", style = MaterialTheme.typography.bodySmall)
         } else {
-          backups.take(5).forEach { rec ->
-            Row(
-              modifier = Modifier.fillMaxWidth(),
-              horizontalArrangement = Arrangement.SpaceBetween,
-              verticalAlignment = Alignment.CenterVertically,
-            ) {
-              Column(modifier = Modifier.weight(1f)) {
-                Text(Formatters.formatTimestamp(rec.createdAtMillis), style = MaterialTheme.typography.labelMedium)
-                Text(
-                  "${Formatters.formatBytes(rec.sizeBytes)} • SHA ${rec.sha256.take(10)}...",
-                  style = MaterialTheme.typography.labelSmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-              }
-              OutlinedButton(onClick = { onRestoreBackup(rec) }) {
-                Icon(Icons.Default.Restore, contentDescription = null)
-                Spacer(Modifier.width(4.dp))
-                Text("Restore")
+          LazyColumn(
+            modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+          ) {
+            items(backups, key = { it.file.absolutePath }) { rec ->
+              Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically,
+              ) {
+                Column(modifier = Modifier.weight(1f)) {
+                  Text(Formatters.formatTimestamp(rec.createdAtMillis), style = MaterialTheme.typography.labelMedium)
+                  Text(
+                    "${Formatters.formatBytes(rec.sizeBytes)} • SHA ${rec.sha256.take(10)}...",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+                OutlinedButton(onClick = { onRestoreBackup(rec) }) {
+                  Icon(Icons.Default.Restore, contentDescription = null)
+                  Spacer(Modifier.width(4.dp))
+                  Text("Restore")
+                }
               }
             }
           }

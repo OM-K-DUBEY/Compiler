@@ -241,6 +241,9 @@ class MainIdeViewModel(application: Application) : AndroidViewModel(application)
       activeProject.collect { proj ->
         if (proj?.id != loadedProjectId) {
           loadedProjectId = proj?.id
+          _buildState.update { it.copy(lastResult = null, webPreviewEntryPath = null) }
+          _protectionFeedback.value = null
+          _decryptedMappingPreview.value = null
           editorController.loadProject(proj)
           refreshBuildDetection(proj)
           refreshProtectionPlan(proj)
@@ -253,9 +256,8 @@ class MainIdeViewModel(application: Application) : AndroidViewModel(application)
     }
     viewModelScope.launch {
       preferences.collect { prefs ->
-        if (prefs.customToolchainPath.isNotBlank()) {
-          container.terminalSessionManager.setCustomPathPrefix(prefs.customToolchainPath)
-        }
+        container.terminalSessionManager.setCustomPathPrefix(prefs.customToolchainPath)
+        editorController.setAutoSaveEnabled(prefs.autoSaveEnabled)
       }
     }
   }

@@ -23,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,12 +32,16 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
@@ -77,8 +82,14 @@ fun IdeSectionHeader(
       style = MaterialTheme.typography.titleSmall,
       color = MaterialTheme.colorScheme.onSurfaceVariant,
       fontWeight = FontWeight.SemiBold,
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
+      modifier = Modifier.weight(1f),
     )
-    if (trailing != null) trailing()
+    if (trailing != null) {
+      Spacer(Modifier.width(8.dp))
+      trailing()
+    }
   }
 }
 
@@ -136,6 +147,7 @@ fun WebPreviewDialog(
 ) {
   val consoleLogs = remember { mutableStateListOf<String>() }
   val entryFile = remember(entryHtmlPath) { File(entryHtmlPath) }
+  var webViewRef by remember { mutableStateOf<WebView?>(null) }
 
   Dialog(
     onDismissRequest = onDismiss,
@@ -162,7 +174,12 @@ fun WebPreviewDialog(
               entryFile.name,
               style = MaterialTheme.typography.labelSmall,
               color = MaterialTheme.colorScheme.onSurfaceVariant,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
             )
+          }
+          IconButton(onClick = { webViewRef?.reload() }) {
+            Icon(Icons.Default.Refresh, contentDescription = "Reload web preview")
           }
           IconButton(onClick = onDismiss) {
             Icon(Icons.Default.Close, contentDescription = "Close web preview")
@@ -185,7 +202,16 @@ fun WebPreviewDialog(
                       return true
                     }
                   }
+                tag = entryFile.absolutePath
                 loadUrl("file://${entryFile.absolutePath}")
+                webViewRef = this
+              }
+            },
+            update = { view ->
+              webViewRef = view
+              if (view.tag != entryFile.absolutePath) {
+                view.tag = entryFile.absolutePath
+                view.loadUrl("file://${entryFile.absolutePath}")
               }
             },
           )
@@ -199,7 +225,18 @@ fun WebPreviewDialog(
             .background(MaterialTheme.colorScheme.background)
             .padding(8.dp),
         ) {
-          Text("JS Console", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text("JS Console", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            if (consoleLogs.isNotEmpty()) {
+              TextButton(onClick = { consoleLogs.clear() }) {
+                Text("Clear", style = MaterialTheme.typography.labelSmall)
+              }
+            }
+          }
           Spacer(Modifier.height(4.dp))
           if (consoleLogs.isEmpty()) {
             Text(

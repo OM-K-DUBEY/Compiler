@@ -184,9 +184,13 @@ fun DevForgeIdeShell(vm: MainIdeViewModel) {
     }
   }
 
-  if (currentRoute != IdeRoute.DASHBOARD) {
+  if (drawerState.isOpen || currentRoute != IdeRoute.DASHBOARD) {
     BackHandler {
-      navigateTo(IdeRoute.DASHBOARD)
+      if (drawerState.isOpen) {
+        scope.launch { drawerState.close() }
+      } else if (!navController.popBackStack()) {
+        navigateTo(IdeRoute.DASHBOARD)
+      }
     }
   }
 

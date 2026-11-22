@@ -24,6 +24,8 @@ import androidx.compose.material.icons.filled.KeyOff
 import androidx.compose.material.icons.filled.NetworkCheck
 import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material.icons.filled.Visibility
+import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
@@ -45,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.example.ai.provider.AIProviderConfig
 import com.example.ai.provider.AuthMethod
@@ -327,6 +330,7 @@ private fun ProviderEditorDialog(
   var baseUrl by remember(existing) { mutableStateOf(existing?.baseUrl ?: providerType.defaultBaseUrl) }
   var apiKey by remember { mutableStateOf("") }
   var clearKey by remember { mutableStateOf(false) }
+  var showApiKey by remember { mutableStateOf(false) }
   var apiVersion by remember(existing) { mutableStateOf(existing?.apiVersion ?: if (providerType == OnlineProviderType.ANTHROPIC) "2023-06-01" else "") }
   var authMethod by remember(existing) { mutableStateOf(existing?.authMethod ?: AIProviderConfig.defaultAuthFor(providerType)) }
   var customAuthHeaderName by remember(existing) { mutableStateOf(existing?.customAuthHeaderName.orEmpty()) }
@@ -403,14 +407,30 @@ private fun ProviderEditorDialog(
           },
           label = {
             Text(
-              if (existing?.hasApiKey == true) "API Key (Encrypted — enter new key to replace)"
-              else "API Key (encrypted via AndroidKeyStore)"
+              when {
+                clearKey -> "Stored key will be cleared on Save"
+                existing?.hasApiKey == true -> "API Key (Encrypted — enter new key to replace)"
+                else -> "API Key (encrypted via AndroidKeyStore)"
+              }
             )
           },
-          visualTransformation = PasswordVisualTransformation(),
+          visualTransformation = if (showApiKey) VisualTransformation.None else PasswordVisualTransformation(),
+          trailingIcon = {
+            IconButton(onClick = { showApiKey = !showApiKey }) {
+              Icon(
+                imageVector = if (showApiKey) Icons.Default.VisibilityOff else Icons.Default.Visibility,
+                contentDescription = if (showApiKey) "Hide API key" else "Show API key",
+              )
+            }
+          },
           singleLine = true,
           modifier = Modifier.fillMaxWidth().testTag("provider_apikey_input"),
         )
+        if (existing?.hasApiKey == true) {
+          TextButton(onClick = { clearKey = !clearKey; if (clearKey) apiKey = "" }) {
+            Text(if (clearKey) "Undo Clear Stored Key" else "Clear Stored API Key")
+          }
+        }
         Text("Authentication Method", style = MaterialTheme.typography.labelMedium)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
           AuthMethod.entries.forEach { method ->

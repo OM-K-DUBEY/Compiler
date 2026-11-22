@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -12,7 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Build
@@ -302,33 +302,36 @@ fun DashboardScreen(
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )
-        }
-      }
-    }
-
-    items(recentBuilds.take(5), key = { it.id }) { build ->
-      IdePanel(modifier = Modifier.fillMaxWidth()) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Column(modifier = Modifier.weight(1f)) {
-            Text("${build.projectName} — ${build.buildSystem}", style = MaterialTheme.typography.titleSmall)
-            Text(
-              "${build.buildType} • ${Formatters.formatDurationMs(build.durationMillis)} • ${Formatters.formatTimestamp(build.timestampMillis)}",
-              style = MaterialTheme.typography.bodySmall,
-              color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-          }
-          val statusColor =
-            when (build.status) {
-              "SUCCEEDED" -> ideColors.success
-              "FAILED" -> MaterialTheme.colorScheme.error
-              "CANCELLED" -> ideColors.warning
-              else -> MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+          recentBuilds.take(5).forEachIndexed { idx, build ->
+            if (idx > 0) HorizontalDivider(modifier = Modifier.padding(vertical = 6.dp), color = ideColors.border)
+            Row(
+              modifier = Modifier
+                .fillMaxWidth()
+                .clickable { onNavigate(IdeRoute.BUILD_HISTORY) }
+                .padding(vertical = 2.dp),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Column(modifier = Modifier.weight(1f)) {
+                Text("${build.projectName} — ${build.buildSystem}", style = MaterialTheme.typography.titleSmall)
+                Text(
+                  "${build.buildType} • ${Formatters.formatDurationMs(build.durationMillis)} • ${Formatters.formatTimestamp(build.timestampMillis)}",
+                  style = MaterialTheme.typography.bodySmall,
+                  color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+              }
+              Spacer(Modifier.width(8.dp))
+              val statusColor =
+                when (build.status) {
+                  "SUCCEEDED" -> ideColors.success
+                  "FAILED" -> MaterialTheme.colorScheme.error
+                  "CANCELLED" -> ideColors.warning
+                  else -> MaterialTheme.colorScheme.onSurfaceVariant
+                }
+              StatusPill(text = build.status, color = statusColor)
             }
-          StatusPill(text = build.status, color = statusColor)
+          }
         }
       }
     }

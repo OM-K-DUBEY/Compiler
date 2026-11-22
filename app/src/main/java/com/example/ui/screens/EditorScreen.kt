@@ -56,6 +56,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -120,6 +121,19 @@ fun EditorScreen(
   var showNewFolderDialog by remember { mutableStateOf(false) }
   var entryMenuTarget by remember { mutableStateOf<FileTreeNode?>(null) }
   var renameMoveTarget by remember { mutableStateOf<FileTreeNode?>(null) }
+  var collapsedFolders by remember(state.activeProject?.id) { mutableStateOf(setOf<String>()) }
+
+  val visibleTreeNodes =
+    remember(state.fileTree, collapsedFolders) {
+      if (collapsedFolders.isEmpty()) state.fileTree
+      else {
+        state.fileTree.filter { node ->
+          collapsedFolders.none { folder ->
+            node.relativePath.startsWith("$folder/")
+          }
+        }
+      }
+    }
 
   if (state.activeProject == null) {
     Box(modifier = Modifier.fillMaxSize().padding(16.dp), contentAlignment = Alignment.Center) {
@@ -225,16 +239,17 @@ fun EditorScreen(
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
               )
-              IconButton(onClick = { showNewFileDialog = true }, modifier = Modifier.size(32.dp)) {
+              IconButton(onClick = { showNewFileDialog = true }, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Default.Add, contentDescription = "New file", modifier = Modifier.size(18.dp))
               }
-              IconButton(onClick = { showNewFolderDialog = true }, modifier = Modifier.size(32.dp)) {
+              IconButton(onClick = { showNewFolderDialog = true }, modifier = Modifier.size(40.dp)) {
                 Icon(Icons.Default.CreateNewFolder, contentDescription = "New folder", modifier = Modifier.size(18.dp))
               }
             }
             LazyColumn(modifier = Modifier.fillMaxSize()) {
-              items(state.fileTree, key = { it.relativePath }) { node ->
+              items(visibleTreeNodes, key = { it.relativePath }) { node ->
                 val isSelected = state.activeTab?.relativePath == node.relativePath
+                val isCollapsedFolder = node.isDirectory && node.relativePath in collapsedFolders
                 Box {
                   Row(
                     modifier = Modifier
@@ -244,16 +259,26 @@ fun EditorScreen(
                         else MaterialTheme.colorScheme.surface
                       )
                       .clickable {
-                        if (!node.isDirectory) onOpenFile(node.relativePath)
-                        else entryMenuTarget = node
+                        if (!node.isDirectory) {
+                          onOpenFile(node.relativePath)
+                        } else {
+                          collapsedFolders =
+                            if (isCollapsedFolder) collapsedFolders - node.relativePath
+                            else collapsedFolders + node.relativePath
+                        }
                       }
-                      .padding(start = (8 + node.depth * 12).dp, end = 4.dp, top = 7.dp, bottom = 7.dp),
+                      .padding(start = (8 + node.depth * 12).dp, end = 4.dp, top = 6.dp, bottom = 6.dp),
                     verticalAlignment = Alignment.CenterVertically,
                   ) {
                     Icon(
-                      imageVector = if (node.isDirectory) Icons.Default.Folder else Icons.Default.Description,
+                      imageVector =
+                        when {
+                          node.isDirectory && isCollapsedFolder -> Icons.Default.Folder
+                          node.isDirectory -> Icons.Default.FolderOpen
+                          else -> Icons.Default.Description
+                        },
                       contentDescription = null,
-                      modifier = Modifier.size(15.dp),
+                      modifier = Modifier.size(16.dp),
                       tint = if (node.isDirectory) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Spacer(Modifier.width(6.dp))
@@ -264,8 +289,8 @@ fun EditorScreen(
                       overflow = TextOverflow.Ellipsis,
                       modifier = Modifier.weight(1f),
                     )
-                    IconButton(onClick = { entryMenuTarget = node }, modifier = Modifier.size(24.dp)) {
-                      Icon(Icons.Default.DriveFileMove, contentDescription = "File actions", modifier = Modifier.size(13.dp))
+                    IconButton(onClick = { entryMenuTarget = node }, modifier = Modifier.size(36.dp)) {
+                      Icon(Icons.Default.DriveFileMove, contentDescription = "File actions", modifier = Modifier.size(15.dp))
                     }
                   }
                   DropdownMenu(
@@ -319,12 +344,17 @@ fun EditorScreen(
                     style = MaterialTheme.typography.labelMedium,
                     color = if (isCurrent) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                   )
-                  Spacer(Modifier.width(6.dp))
-                  Icon(
-                    Icons.Default.Close,
-                    contentDescription = "Close ${tab.fileName}",
-                    modifier = Modifier.size(14.dp).clickable { onCloseTab(tab.id) },
-                  )
+                  Spacer(Modifier.width(4.dp))
+                  Box(
+                    modifier = Modifier.size(32.dp).clickable { onCloseTab(tab.id) },
+                    contentAlignment = Alignment.Center,
+                  ) {
+                    Icon(
+                      Icons.Default.Close,
+                      contentDescription = "Close ${tab.fileName}",
+                      modifier = Modifier.size(15.dp),
+                    )
+                  }
                 }
               }
             }
@@ -348,7 +378,12 @@ fun EditorScreen(
                 activeTab.content
               }
 
-            var selection by remember(activeTab.id) { mutableStateOf(TextRange(activeTab.cursorOffset.coerceIn(0, displayedText.length))) }
+            var selection by remember(activeTab.id) {
+              mutableStateOf(TextRange(activeTab.cursorOffset.coerceIn(0, displayedText.length)))
+            }
+            LaunchedEffect(activeTab.id, activeTab.cursorRevision) {
+              selection = TextRange(activeTab.cursorOffset.coerceIn(0, displayedText.length))
+            }
             val matchedBrackets =
               remember(displayedText, selection.start) {
                 SyntaxHighlighter.findMatchingBracket(displayedText, selection.start)
@@ -524,7 +559,7 @@ fun EditorScreen(
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Text("Diagnostics (${state.diagnostics.size})", style = MaterialTheme.typography.titleSmall)
-          IconButton(onClick = onToggleDiagnostics, modifier = Modifier.size(28.dp)) {
+          IconButton(onClick = onToggleDiagnostics) {
             Icon(Icons.Default.Close, contentDescription = "Close diagnostics")
           }
         }

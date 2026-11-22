@@ -24,6 +24,7 @@ data class OpenEditorTab(
   val content: String,
   val savedContent: String,
   val cursorOffset: Int = 0,
+  val cursorRevision: Int = 0,
   val undoStack: List<String> = emptyList(),
   val redoStack: List<String> = emptyList(),
   val collapsedFoldStarts: Set<Int> = emptySet(),

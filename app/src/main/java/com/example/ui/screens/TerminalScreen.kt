@@ -1,5 +1,8 @@
 package com.example.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -17,10 +20,12 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.ClearAll
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Stop
 import androidx.compose.material3.AlertDialog
@@ -40,8 +45,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.terminal.TerminalLine
@@ -64,11 +71,24 @@ fun TerminalScreen(
   onCancel: () -> Unit,
   onClear: () -> Unit,
 ) {
+  val context = LocalContext.current
   val ideColors = LocalIdeColors.current
   var commandInput by remember { mutableStateOf("") }
   var pendingScriptConfirm by remember { mutableStateOf<String?>(null) }
   var showEnvDialog by remember { mutableStateOf(false) }
   val listState = rememberLazyListState()
+
+  fun submitCommand() {
+    val cmd = commandInput.trim()
+    if (cmd.isNotEmpty() && !isRunning) {
+      if (requiresConfirmation(cmd)) {
+        pendingScriptConfirm = cmd
+      } else {
+        commandInput = ""
+        onExecute(cmd)
+      }
+    }
+  }
 
   LaunchedEffect(lines.size) {
     if (lines.isNotEmpty()) {
@@ -97,6 +117,14 @@ fun TerminalScreen(
             overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
           )
         }
+        IconButton(
+          onClick = {
+            val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            cb?.setPrimaryClip(ClipData.newPlainText("DevForge Terminal Output", lines.joinToString("\n") { it.text }))
+          },
+        ) {
+          Icon(Icons.Default.ContentCopy, contentDescription = "Copy terminal output")
+        }
         IconButton(onClick = { showEnvDialog = true }) {
           Icon(Icons.Default.Info, contentDescription = "Environment variables")
         }
@@ -106,7 +134,7 @@ fun TerminalScreen(
       }
     }
 
-    // Terminal Output Buffer with real text selection
+    // Terminal Output Buffer
     Box(
       modifier = Modifier
         .weight(1f)
@@ -115,26 +143,24 @@ fun TerminalScreen(
         .border(1.dp, ideColors.border)
         .padding(8.dp),
     ) {
-      SelectionContainer(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-          state = listState,
-          modifier = Modifier.fillMaxSize(),
-          verticalArrangement = Arrangement.spacedBy(2.dp),
-        ) {
-          items(lines) { line ->
-            val color =
-              when (line.kind) {
-                TerminalLineKind.COMMAND -> MaterialTheme.colorScheme.primary
-                TerminalLineKind.STDOUT -> MaterialTheme.colorScheme.onBackground
-                TerminalLineKind.STDERR -> MaterialTheme.colorScheme.error
-                TerminalLineKind.SYSTEM -> ideColors.warning
-              }
-            Text(
-              text = line.text,
-              style = TextStyle(fontFamily = JetBrainsMonoFontFamily, fontSize = 12.sp, lineHeight = 16.sp),
-              color = color,
-            )
-          }
+      LazyColumn(
+        state = listState,
+        modifier = Modifier.fillMaxSize(),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+      ) {
+        items(lines) { line ->
+          val color =
+            when (line.kind) {
+              TerminalLineKind.COMMAND -> MaterialTheme.colorScheme.primary
+              TerminalLineKind.STDOUT -> MaterialTheme.colorScheme.onBackground
+              TerminalLineKind.STDERR -> MaterialTheme.colorScheme.error
+              TerminalLineKind.SYSTEM -> ideColors.warning
+            }
+          Text(
+            text = line.text,
+            style = TextStyle(fontFamily = JetBrainsMonoFontFamily, fontSize = 12.sp, lineHeight = 16.sp),
+            color = color,
+          )
         }
       }
     }
@@ -162,6 +188,8 @@ fun TerminalScreen(
         onValueChange = { commandInput = it },
         placeholder = { Text("Enter shell command (e.g. ls -la, pwd, env)...") },
         singleLine = true,
+        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+        keyboardActions = KeyboardActions(onSend = { submitCommand() }),
         textStyle = TextStyle(fontFamily = JetBrainsMonoFontFamily, fontSize = 13.sp),
         modifier = Modifier.weight(1f).testTag("terminal_command_input"),
       )
@@ -173,17 +201,8 @@ fun TerminalScreen(
         }
       } else {
         Button(
-          onClick = {
-            val cmd = commandInput.trim()
-            if (cmd.isNotEmpty()) {
-              if (requiresConfirmation(cmd)) {
-                pendingScriptConfirm = cmd
-              } else {
-                commandInput = ""
-                onExecute(cmd)
-              }
-            }
-          },
+          onClick = { submitCommand() },
+          enabled = commandInput.isNotBlank(),
           modifier = Modifier.testTag("terminal_run_btn"),
         ) {
           Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Run command")

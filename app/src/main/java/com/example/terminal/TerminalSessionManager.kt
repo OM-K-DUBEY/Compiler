@@ -44,6 +44,8 @@ class TerminalSessionManager(
   private val _isRunning = MutableStateFlow(false)
   val isRunning: StateFlow<Boolean> = _isRunning.asStateFlow()
 
+  private val basePath: String = System.getenv("PATH") ?: "/system/bin:/system/xbin"
+
   private val _envVars = MutableStateFlow<Map<String, String>>(defaultEnv())
   val envVars: StateFlow<Map<String, String>> = _envVars.asStateFlow()
 
@@ -60,9 +62,9 @@ class TerminalSessionManager(
   }
 
   fun setCustomPathPrefix(customPath: String) {
-    if (customPath.isBlank()) return
-    val current = _envVars.value["PATH"] ?: "/system/bin:/system/xbin"
-    _envVars.value = _envVars.value + ("PATH" to "$customPath:$current")
+    val cleaned = customPath.trim()
+    val updatedPath = if (cleaned.isEmpty()) basePath else "$cleaned:$basePath"
+    _envVars.value = _envVars.value + ("PATH" to updatedPath)
   }
 
   fun clearOutput() {

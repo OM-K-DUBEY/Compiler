@@ -1,8 +1,13 @@
 package com.example.ui.screens
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -14,14 +19,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Dns
 import androidx.compose.material.icons.filled.FolderOpen
@@ -49,8 +57,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.example.core.common.Formatters
 import com.example.core.database.AiMessageEntity
@@ -93,11 +103,17 @@ fun AiAssistantScreen(
   onOpenModelSelector: () -> Unit,
   onOpenMcpManager: () -> Unit,
 ) {
+  val context = LocalContext.current
   val ideColors = LocalIdeColors.current
   var input by remember { mutableStateOf("") }
   var showCheckpointsSheet by remember { mutableStateOf(false) }
   var showContextPicker by remember { mutableStateOf(false) }
   var showConversationDialog by remember { mutableStateOf(false) }
+
+  fun copyText(label: String, text: String) {
+    val cb = context.getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+    cb?.setPrimaryClip(ClipData.newPlainText(label, text))
+  }
 
   Column(
     modifier = Modifier.fillMaxSize().padding(12.dp).imePadding(),
@@ -111,9 +127,16 @@ fun AiAssistantScreen(
         verticalAlignment = Alignment.CenterVertically,
       ) {
         Column(modifier = Modifier.weight(1f)) {
-          Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+          FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+          ) {
             Text("AI Engineer", style = MaterialTheme.typography.titleMedium)
-            StatusPill(text = activeModelBadge, color = MaterialTheme.colorScheme.primary)
+            StatusPill(
+              text = activeModelBadge,
+              color = MaterialTheme.colorScheme.primary,
+              modifier = Modifier.clickable { onOpenModelSelector() },
+            )
           }
           Text(
             if (activeProject != null) {
@@ -185,88 +208,89 @@ fun AiAssistantScreen(
       }
     }
 
-    // Pending Agent Plan + Selective Per-File Diff Approval Panel
-    state.pendingPlan?.let { plan ->
-      IdePanel(modifier = Modifier.fillMaxWidth().testTag("agent_plan_approval_panel")) {
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.SpaceBetween,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          Text("Proposed Agent Changes", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
-          TextButton(onClick = onSelectAllPatchFiles) { Text("Select All") }
-        }
-        Text(plan.summary, style = MaterialTheme.typography.bodySmall)
-        Spacer(Modifier.height(6.dp))
-        state.pendingPreviews.forEach { preview ->
-          val path = preview.patch.relativePath
-          val isSelected = path in state.selectedPatchPaths
-          Row(verticalAlignment = Alignment.CenterVertically) {
-            Checkbox(checked = isSelected, onCheckedChange = { onTogglePatchFile(path) })
-            Text(
-              "${preview.patch.operation.name}: $path",
-              style = MaterialTheme.typography.labelMedium,
-              fontWeight = FontWeight.SemiBold,
-            )
-          }
-          Column(
-            modifier = Modifier
-              .fillMaxWidth()
-              .background(MaterialTheme.colorScheme.background)
-              .border(1.dp, ideColors.border)
-              .padding(6.dp),
-          ) {
-            preview.diffLines.filter { it.type != DiffLineType.CONTEXT }.take(12).forEach { dl ->
-              val prefix = when (dl.type) {
-                DiffLineType.ADDED -> "+"
-                DiffLineType.REMOVED -> "-"
-                DiffLineType.CONTEXT -> " "
-              }
-              val color = when (dl.type) {
-                DiffLineType.ADDED -> ideColors.success
-                DiffLineType.REMOVED -> MaterialTheme.colorScheme.error
-                DiffLineType.CONTEXT -> MaterialTheme.colorScheme.onSurfaceVariant
-              }
-              Text(
-                "$prefix ${dl.text}",
-                fontFamily = JetBrainsMonoFontFamily,
-                style = MaterialTheme.typography.labelSmall,
-                color = color,
-              )
-            }
-          }
-          Spacer(Modifier.height(6.dp))
-        }
-        FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-          Button(
-            onClick = { onApprovePlan(true) },
-            modifier = Modifier.testTag("agent_approve_apply_btn"),
-          ) {
-            Icon(Icons.Default.Check, contentDescription = null)
-            Spacer(Modifier.width(4.dp))
-            Text("Accept All")
-          }
-          OutlinedButton(
-            onClick = { onApprovePlan(false) },
-            enabled = state.selectedPatchPaths.isNotEmpty(),
-            modifier = Modifier.testTag("agent_accept_selected_btn"),
-          ) {
-            Text("Accept Selected (${state.selectedPatchPaths.size})")
-          }
-          OutlinedButton(onClick = onDiscardPlan) {
-            Icon(Icons.Default.Close, contentDescription = null)
-            Spacer(Modifier.width(4.dp))
-            Text("Reject")
-          }
-        }
-      }
-    }
-
-    // Conversation Thread
+    // Conversation Thread & Pending Agent Diffs
     LazyColumn(
       modifier = Modifier.weight(1f).fillMaxWidth(),
       verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
+      state.pendingPlan?.let { plan ->
+        item(key = "pending_plan") {
+          IdePanel(modifier = Modifier.fillMaxWidth().testTag("agent_plan_approval_panel")) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              Text("Proposed Agent Changes", style = MaterialTheme.typography.titleSmall, color = MaterialTheme.colorScheme.primary)
+              TextButton(onClick = onSelectAllPatchFiles) { Text("Select All") }
+            }
+            Text(plan.summary, style = MaterialTheme.typography.bodySmall)
+            Spacer(Modifier.height(6.dp))
+            state.pendingPreviews.forEach { preview ->
+              val path = preview.patch.relativePath
+              val isSelected = path in state.selectedPatchPaths
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                Checkbox(checked = isSelected, onCheckedChange = { onTogglePatchFile(path) })
+                Text(
+                  "${preview.patch.operation.name}: $path",
+                  style = MaterialTheme.typography.labelMedium,
+                  fontWeight = FontWeight.SemiBold,
+                )
+              }
+              Column(
+                modifier = Modifier
+                  .fillMaxWidth()
+                  .background(MaterialTheme.colorScheme.background)
+                  .border(1.dp, ideColors.border)
+                  .padding(6.dp),
+              ) {
+                preview.diffLines.filter { it.type != DiffLineType.CONTEXT }.take(12).forEach { dl ->
+                  val prefix = when (dl.type) {
+                    DiffLineType.ADDED -> "+"
+                    DiffLineType.REMOVED -> "-"
+                    DiffLineType.CONTEXT -> " "
+                  }
+                  val color = when (dl.type) {
+                    DiffLineType.ADDED -> ideColors.success
+                    DiffLineType.REMOVED -> MaterialTheme.colorScheme.error
+                    DiffLineType.CONTEXT -> MaterialTheme.colorScheme.onSurfaceVariant
+                  }
+                  Text(
+                    "$prefix ${dl.text}",
+                    fontFamily = JetBrainsMonoFontFamily,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = color,
+                  )
+                }
+              }
+              Spacer(Modifier.height(6.dp))
+            }
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+              Button(
+                onClick = { onApprovePlan(true) },
+                modifier = Modifier.testTag("agent_approve_apply_btn"),
+              ) {
+                Icon(Icons.Default.Check, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
+                Text("Accept All")
+              }
+              OutlinedButton(
+                onClick = { onApprovePlan(false) },
+                enabled = state.selectedPatchPaths.isNotEmpty(),
+                modifier = Modifier.testTag("agent_accept_selected_btn"),
+              ) {
+                Text("Accept Selected (${state.selectedPatchPaths.size})")
+              }
+              OutlinedButton(onClick = onDiscardPlan) {
+                Icon(Icons.Default.Close, contentDescription = null)
+                Spacer(Modifier.width(4.dp))
+                Text("Reject")
+              }
+            }
+          }
+        }
+      }
+
       if (messages.isEmpty() && !state.isGenerating) {
         item {
           IdePanel(modifier = Modifier.fillMaxWidth()) {
@@ -288,22 +312,37 @@ fun AiAssistantScreen(
           modifier = Modifier.fillMaxWidth(),
         ) {
           Column(modifier = Modifier.padding(10.dp)) {
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Row(
+              modifier = Modifier.fillMaxWidth(),
+              horizontalArrangement = Arrangement.SpaceBetween,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
               Text(
                 if (isUser) "You" else "${msg.providerLabel} • ${msg.modelId}",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.primary,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.weight(1f),
               )
-              if (msg.promptTokens > 0 || msg.completionTokens > 0) {
-                Text(
-                  "${msg.promptTokens}+${msg.completionTokens} tok",
-                  style = MaterialTheme.typography.labelSmall,
-                  color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+              Row(verticalAlignment = Alignment.CenterVertically) {
+                if (msg.promptTokens > 0 || msg.completionTokens > 0) {
+                  Text(
+                    "${msg.promptTokens}+${msg.completionTokens} tok",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                  )
+                }
+                IconButton(
+                  onClick = { copyText("AI Message", msg.content) },
+                  modifier = Modifier.size(32.dp),
+                ) {
+                  Icon(Icons.Default.ContentCopy, contentDescription = "Copy message", modifier = Modifier.size(14.dp))
+                }
               }
             }
             Spacer(Modifier.height(4.dp))
-            Text(msg.content, style = MaterialTheme.typography.bodyMedium)
+            AiMessageContent(content = msg.content, onCopyCode = { code -> copyText("Code snippet", code) })
           }
         }
       }
@@ -343,6 +382,7 @@ fun AiAssistantScreen(
             input = ""
             onSendMessage(text, false)
           },
+          enabled = input.isNotBlank(),
           modifier = Modifier.testTag("ai_send_btn"),
         ) {
           Icon(Icons.AutoMirrored.Filled.Send, contentDescription = "Send prompt")
@@ -494,5 +534,74 @@ fun AiAssistantScreen(
       },
       confirmButton = { TextButton(onClick = { showCheckpointsSheet = false }) { Text("Close") } },
     )
+  }
+}
+
+private data class MessageSegment(val isCode: Boolean, val lang: String, val text: String)
+
+private fun splitMessageSegments(content: String): List<MessageSegment> {
+  val regex = Regex("```([a-zA-Z0-9_-]*)\\n([\\s\\S]*?)```")
+  val segments = mutableListOf<MessageSegment>()
+  var cursor = 0
+  for (match in regex.findAll(content)) {
+    if (match.range.first > cursor) {
+      val plain = content.substring(cursor, match.range.first).trim()
+      if (plain.isNotEmpty()) segments += MessageSegment(isCode = false, lang = "", text = plain)
+    }
+    val lang = match.groupValues[1].ifBlank { "code" }
+    val code = match.groupValues[2].trimEnd()
+    segments += MessageSegment(isCode = true, lang = lang, text = code)
+    cursor = match.range.last + 1
+  }
+  if (cursor < content.length) {
+    val tail = content.substring(cursor).trim()
+    if (tail.isNotEmpty() || segments.isEmpty()) {
+      segments += MessageSegment(isCode = false, lang = "", text = tail.ifEmpty { content })
+    }
+  }
+  return if (segments.isEmpty()) listOf(MessageSegment(false, "", content)) else segments
+}
+
+@Composable
+private fun AiMessageContent(
+  content: String,
+  onCopyCode: (String) -> Unit,
+) {
+  val ideColors = LocalIdeColors.current
+  val segments = remember(content) { splitMessageSegments(content) }
+  Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+    segments.forEach { seg ->
+      if (!seg.isCode) {
+        Text(seg.text, style = MaterialTheme.typography.bodyMedium)
+      } else {
+        Column(
+          modifier = Modifier
+            .fillMaxWidth()
+            .background(MaterialTheme.colorScheme.background)
+            .border(1.dp, ideColors.border)
+            .padding(8.dp),
+        ) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            Text(seg.lang.uppercase(), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            TextButton(onClick = { onCopyCode(seg.text) }) {
+              Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
+              Spacer(Modifier.width(4.dp))
+              Text("Copy", style = MaterialTheme.typography.labelSmall)
+            }
+          }
+          Text(
+            text = seg.text,
+            fontFamily = JetBrainsMonoFontFamily,
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+          )
+        }
+      }
+    }
   }
 }

@@ -32,6 +32,11 @@ class EditorController(
 
   private var autoSaveJob: Job? = null
   private var projectSymbolsCache: List<String> = emptyList()
+  private var autoSaveEnabledPref: Boolean = true
+
+  fun setAutoSaveEnabled(enabled: Boolean) {
+    autoSaveEnabledPref = enabled
+  }
 
   fun loadProject(project: ProjectEntity?) {
     if (project == null) {
@@ -168,7 +173,7 @@ class EditorController(
     val existing = _state.value.openTabs.firstOrNull { it.id == tabId }
     if (existing != null) {
       val offset = lineStartOffset(existing.content, line)
-      val updated = existing.copy(cursorOffset = offset)
+      val updated = existing.copy(cursorOffset = offset, cursorRevision = existing.cursorRevision + 1)
       _state.update { s ->
         s.copy(
           openTabs = s.openTabs.map { if (it.id == tabId) updated else it },
@@ -314,8 +319,13 @@ class EditorController(
     val range = CompletionEngine.currentWordRange(active.content, active.cursorOffset)
     val newContent = active.content.replaceRange(range, insertText)
     val newCursor = range.first + insertText.length
-    updateContent(newContent, newCursor, autoSaveEnabled = true)
-    _state.update { it.copy(completions = emptyList()) }
+    updateContent(newContent, newCursor, autoSaveEnabled = autoSaveEnabledPref)
+    _state.update { s ->
+      s.copy(
+        openTabs = s.openTabs.map { if (it.id == active.id) it.copy(cursorRevision = it.cursorRevision + 1) else it },
+        completions = emptyList(),
+      )
+    }
   }
 
   fun undo() {
@@ -325,6 +335,7 @@ class EditorController(
       active.copy(
         content = prev,
         cursorOffset = prev.length.coerceAtMost(active.cursorOffset),
+        cursorRevision = active.cursorRevision + 1,
         undoStack = active.undoStack.dropLast(1),
         redoStack = (active.redoStack + active.content).takeLast(50),
       )
@@ -338,6 +349,7 @@ class EditorController(
       active.copy(
         content = next,
         cursorOffset = next.length.coerceAtMost(active.cursorOffset),
+        cursorRevision = active.cursorRevision + 1,
         undoStack = (active.undoStack + active.content).takeLast(50),
         redoStack = active.redoStack.dropLast(1),
       )
@@ -348,8 +360,13 @@ class EditorController(
     val active = _state.value.activeTab ?: return
     val formatted = CodeFormatter.format(active.content, active.language, tabSize)
     if (formatted != active.content) {
-      updateContent(formatted, formatted.length.coerceAtMost(active.cursorOffset), autoSaveEnabled = true)
-      _state.update { it.copy(statusBanner = "Formatted ${active.fileName}") }
+      updateContent(formatted, formatted.length.coerceAtMost(active.cursorOffset), autoSaveEnabled = autoSaveEnabledPref)
+      _state.update { s ->
+        s.copy(
+          openTabs = s.openTabs.map { if (it.id == active.id) it.copy(cursorRevision = it.cursorRevision + 1) else it },
+          statusBanner = "Formatted ${active.fileName}",
+        )
+      }
     }
   }
 
@@ -417,12 +434,21 @@ class EditorController(
         s.searchRegex,
       )
     if (count > 0) {
-      updateContent(replaced, 0, autoSaveEnabled = true)
-      _state.update { it.copy(statusBanner = "Replaced $count occurrence(s)") }
+      updateContent(replaced, 0, autoSaveEnabled = autoSaveEnabledPref)
+      _state.update { s ->
+        s.copy(
+          openTabs = s.openTabs.map { if (it.id == active.id) it.copy(cursorRevision = it.cursorRevision + 1) else it },
+          statusBanner = "Replaced $count occurrence(s)",
+        )
+      }
     }
   }
 
   fun searchInProject(query: String) {
+    if (query.isBlank()) {
+      _state.update { it.copy(projectSearchHits = emptyList()) }
+      return
+    }
     val project = _state.value.activeProject ?: return
     scope.launch {
       val root = File(project.rootPath)
