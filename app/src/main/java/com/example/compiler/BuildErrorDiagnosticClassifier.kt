@@ -1,7 +1,7 @@
 package com.example.compiler
 
 object BuildErrorDiagnosticClassifier {
-  private val fileLineRegex = Regex("""(?:file://)?([^\s:]+\.(?:kt|kts|java|dart|ts|tsx|js|xml|cpp|c|h|py)):(\d+)(?::\d+)?""")
+  private val fileLineRegex = Regex("""(?:file://)?([^\s:]+\.(?:kt|kts|java|dart|ts|tsx|js|xml)):(\d+)(?::\d+)?""")
 
   fun classify(logs: String): List<BuildDiagnosticItem> {
     if (logs.isBlank()) return emptyList()

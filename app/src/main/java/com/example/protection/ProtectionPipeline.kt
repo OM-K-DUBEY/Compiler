@@ -22,8 +22,6 @@ class ProtectionToolRegistry {
       AndroidR8Adapter(),
       FlutterObfuscationAdapter(),
       JsTsProtectionAdapter(),
-      PythonProtectionAdapter(),
-      CppNativeStripAdapter(),
       AssetAndWebProtectionAdapter(),
     )
 
@@ -112,7 +110,6 @@ class ProtectionProfileManager(
       put("flutter", c.enableFlutterObfuscate)
       put("jsMin", c.enableJsMinification)
       put("jsObf", c.enableJsObfuscator)
-      put("nativeStrip", c.enableNativeStrip)
       put("webMin", c.enableWebMinification)
       put("assetEnc", c.enableOptInAssetEncryption)
     }.toString()
@@ -126,7 +123,6 @@ class ProtectionProfileManager(
         enableFlutterObfuscate = o.optBoolean("flutter", true),
         enableJsMinification = o.optBoolean("jsMin", true),
         enableJsObfuscator = o.optBoolean("jsObf", false),
-        enableNativeStrip = o.optBoolean("nativeStrip", true),
         enableWebMinification = o.optBoolean("webMin", true),
         enableOptInAssetEncryption = o.optBoolean("assetEnc", false),
       )
@@ -168,10 +164,7 @@ object ProtectionCompatibilityChecker {
         )
     }
     availabilities.filter { !it.isAvailable }.forEach { tool ->
-      val relevant =
-        (tool.toolId == "flutter_obfuscate" && DetectedFramework.FLUTTER in frameworks) ||
-          (tool.toolId == "python_protection" && DetectedFramework.PYTHON_APP in frameworks) ||
-          (tool.toolId == "cpp_llvm_strip" && DetectedFramework.NATIVE_CPP in frameworks)
+      val relevant = tool.toolId == "flutter_obfuscate" && DetectedFramework.FLUTTER in frameworks
       if (relevant) {
         issues +=
           ProtectionCompatibilityIssue(

@@ -95,11 +95,11 @@ class CompilerAndTerminalTest {
     val flutterProj = workspaceManager.createProject("FlutApp", "com.test.flut", ProjectTemplateType.FLUTTER)
     assertTrue(BuildSystemType.FLUTTER in ProjectDetector.detectBuildSystems(File(flutterProj.rootPath)))
 
-    val rnProj = workspaceManager.createProject("RnApp", "com.test.rn", ProjectTemplateType.REACT_NATIVE)
-    assertTrue(BuildSystemType.REACT_NATIVE in ProjectDetector.detectBuildSystems(File(rnProj.rootPath)))
+    val webProj = workspaceManager.createProject("WebApp", "com.test.web", ProjectTemplateType.WEB_APP)
+    assertTrue(BuildSystemType.WEB_STATIC in ProjectDetector.detectBuildSystems(File(webProj.rootPath)))
 
-    val cppProj = workspaceManager.createProject("CppApp", "com.test.cpp", ProjectTemplateType.CPP_CMAKE)
-    assertTrue(BuildSystemType.CPP_CMAKE in ProjectDetector.detectBuildSystems(File(cppProj.rootPath)))
+    val kotlinProj = workspaceManager.createProject("KtApp", "com.test.kt", ProjectTemplateType.KOTLIN_CLI)
+    assertTrue(BuildSystemType.GRADLE_JVM in ProjectDetector.detectBuildSystems(File(kotlinProj.rootPath)))
   }
 
   @Test

@@ -28,20 +28,11 @@ object ProjectDetector {
     if (File(projectRoot, "pubspec.yaml").exists()) {
       detected += BuildSystemType.FLUTTER
     }
-    if (File(projectRoot, "package.json").exists()) {
-      detected += BuildSystemType.REACT_NATIVE
-    }
-    if (File(projectRoot, "CMakeLists.txt").exists()) {
-      detected += BuildSystemType.CPP_CMAKE
-    }
     if (File(projectRoot, "index.html").exists()) {
       detected += BuildSystemType.WEB_STATIC
     }
 
     val files = projectRoot.walkTopDown().maxDepth(4).filter { it.isFile }.toList()
-    if (files.any { it.extension.equals("py", ignoreCase = true) }) {
-      detected += BuildSystemType.PYTHON
-    }
     if (BuildSystemType.GRADLE_ANDROID !in detected && BuildSystemType.GRADLE_JVM !in detected) {
       if (files.any { it.extension.equals("kt", ignoreCase = true) }) {
         detected += BuildSystemType.KOTLIN_STANDALONE

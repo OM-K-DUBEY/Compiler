@@ -173,7 +173,7 @@ object DiagnosticsEngine {
           i += 2
           col += 2
         }
-        c == '#' && (lang == CodeLanguage.PYTHON || lang == CodeLanguage.YAML) -> {
+        c == '#' && lang == CodeLanguage.YAML -> {
           inLineComment = true
           i++
           col++
@@ -235,7 +235,7 @@ object DiagnosticsEngine {
         )
     }
 
-    if (lang == CodeLanguage.JAVA || lang == CodeLanguage.C || lang == CodeLanguage.CPP) {
+    if (lang == CodeLanguage.JAVA) {
       checkMissingSemicolons(filePath, content, out)
     }
   }

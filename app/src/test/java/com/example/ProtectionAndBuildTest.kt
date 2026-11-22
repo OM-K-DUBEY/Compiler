@@ -15,7 +15,6 @@ import com.example.core.storage.ZipArchiveManager
 import com.example.protection.AndroidR8Adapter
 import com.example.protection.AssetAndWebProtectionAdapter
 import com.example.protection.CodeMinifier
-import com.example.protection.CppNativeStripAdapter
 import com.example.protection.DetectedFramework
 import com.example.protection.FileTypeDetector
 import com.example.protection.FlutterObfuscationAdapter
@@ -31,7 +30,6 @@ import com.example.protection.ProtectionExecutionContext
 import com.example.protection.ProtectionPipeline
 import com.example.protection.ProtectionProfileManager
 import com.example.protection.ProtectionProfileMode
-import com.example.protection.PythonProtectionAdapter
 import com.example.protection.SymbolAndMappingVault
 import com.example.protection.ToolExecutionStatus
 import com.example.sdk.SdkManagerRepository
@@ -93,14 +91,11 @@ class ProtectionAndBuildTest {
     val fltProj = workspaceManager.createProject("FltDet", "com.det.flt", ProjectTemplateType.FLUTTER)
     assertTrue(DetectedFramework.FLUTTER in FrameworkDetector.detectFrameworks(File(fltProj.rootPath)))
 
-    val rnProj = workspaceManager.createProject("RnDet", "com.det.rn", ProjectTemplateType.REACT_NATIVE)
-    assertTrue(DetectedFramework.REACT_NATIVE in FrameworkDetector.detectFrameworks(File(rnProj.rootPath)))
+    val webProj = workspaceManager.createProject("WebDet", "com.det.web", ProjectTemplateType.WEB_APP)
+    assertTrue(DetectedFramework.WEB_JS_TS in FrameworkDetector.detectFrameworks(File(webProj.rootPath)))
 
-    val cppProj = workspaceManager.createProject("CppDet", "com.det.cpp", ProjectTemplateType.CPP_CMAKE)
-    assertTrue(DetectedFramework.NATIVE_CPP in FrameworkDetector.detectFrameworks(File(cppProj.rootPath)))
-
-    val pyProj = workspaceManager.createProject("PyDet", "com.det.py", ProjectTemplateType.PYTHON_APP)
-    assertTrue(DetectedFramework.PYTHON_APP in FrameworkDetector.detectFrameworks(File(pyProj.rootPath)))
+    val ktProj = workspaceManager.createProject("KtDet", "com.det.kt", ProjectTemplateType.KOTLIN_CLI)
+    assertTrue(DetectedFramework.JVM_GRADLE in FrameworkDetector.detectFrameworks(File(ktProj.rootPath)))
   }
 
   @Test
@@ -178,7 +173,7 @@ class ProtectionAndBuildTest {
   }
 
   @Test
-  fun optInAssetEncryptionRoundTripAndPythonCppFlutterHonestChecks() {
+  fun optInAssetEncryptionRoundTripAndFlutterHonestChecks() {
     val key = OptInAssetCrypto.generateKeyBytes()
     val secretData = "SECRET_ASSET_PAYLOAD_123".toByteArray()
     val encrypted = OptInAssetCrypto.encryptBytes(secretData, key)
@@ -187,14 +182,6 @@ class ProtectionAndBuildTest {
     assertArrayEquals(secretData, decrypted)
 
     val tmpDir = File(context.cacheDir, "honest_probe_${System.currentTimeMillis()}").apply { mkdirs() }
-    val pyProbe = PythonProtectionAdapter().probeAvailability(sdkRepo, "/nonexistent", tmpDir)
-    assertFalse(pyProbe.isAvailable)
-    assertTrue(pyProbe.reasonIfUnavailable!!.contains("PyArmor"))
-
-    val cppProbe = CppNativeStripAdapter().probeAvailability(sdkRepo, "/nonexistent", tmpDir)
-    if (!cppProbe.isAvailable) {
-      assertTrue(cppProbe.reasonIfUnavailable!!.contains("llvm-strip"))
-    }
     val fltProbe = FlutterObfuscationAdapter().probeAvailability(sdkRepo, "/nonexistent", tmpDir)
     if (!fltProbe.isAvailable) {
       assertTrue(fltProbe.reasonIfUnavailable!!.contains("Flutter"))
@@ -203,9 +190,9 @@ class ProtectionAndBuildTest {
       ProtectionCompatibilityChecker.check(
         ProtectionProfileMode.STRONG,
         ProtectionConfig.forProfile(ProtectionProfileMode.STRONG),
-        setOf(DetectedFramework.ANDROID_GRADLE, DetectedFramework.PYTHON_APP),
+        setOf(DetectedFramework.ANDROID_GRADLE, DetectedFramework.FLUTTER),
         BuildVariant.DEBUG,
-        listOf(pyProbe),
+        listOf(fltProbe),
       )
     assertTrue(issues.any { it.title.contains("Strong Profile") })
     assertTrue(issues.any { it.title.contains("Debug Build") })

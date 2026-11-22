@@ -6,10 +6,7 @@ enum class BuildSystemType(val displayName: String) {
   GRADLE_ANDROID("Android Gradle"),
   GRADLE_JVM("Kotlin/Java Gradle"),
   FLUTTER("Flutter / Dart"),
-  REACT_NATIVE("React Native / Node"),
-  CPP_CMAKE("C/C++ CMake"),
   WEB_STATIC("Web (HTML/CSS/JS)"),
-  PYTHON("Python"),
   JAVA_STANDALONE("Java (javac)"),
   KOTLIN_STANDALONE("Kotlin (kotlinc)"),
 }

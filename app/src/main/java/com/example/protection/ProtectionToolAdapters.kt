@@ -50,7 +50,7 @@ class AndroidR8Adapter : ProtectionToolAdapter {
   override val id = "android_r8"
   override val displayName = "Android R8 / ProGuard"
   override val supportedLanguages = setOf(LanguageFamily.JAVA_KOTLIN)
-  override val supportedFrameworks = setOf(DetectedFramework.ANDROID_GRADLE, DetectedFramework.REACT_NATIVE)
+  override val supportedFrameworks = setOf(DetectedFramework.ANDROID_GRADLE)
 
   override fun probeAvailability(
     sdkRepo: SdkManagerRepository,
@@ -86,11 +86,6 @@ class AndroidR8Adapter : ProtectionToolAdapter {
       appendLine("-keepclassmembers class * { native <methods>; }")
       appendLine("-keep class kotlin.Metadata { *; }")
       appendLine("-keepclassmembers class * extends java.lang.Enum { values(); valueOf(java.lang.String); }")
-      if (DetectedFramework.REACT_NATIVE in context.detectedFrameworks) {
-        appendLine("# Preserve React Native @ReactMethod & NativeModule bridges")
-        appendLine("-keepclassmembers class * { @com.facebook.react.bridge.ReactMethod <methods>; }")
-        appendLine("-keep class * extends com.facebook.react.bridge.ReactContextBaseJavaModule { *; }")
-      }
       if (context.profileMode == ProtectionProfileMode.BASIC) {
         appendLine("-dontoptimize")
       }
@@ -190,7 +185,7 @@ class JsTsProtectionAdapter : ProtectionToolAdapter {
   override val id = "js_ts_protector"
   override val displayName = "JS / TS Minifier & Terser"
   override val supportedLanguages = setOf(LanguageFamily.JS_TS)
-  override val supportedFrameworks = setOf(DetectedFramework.WEB_JS_TS, DetectedFramework.REACT_NATIVE)
+  override val supportedFrameworks = setOf(DetectedFramework.WEB_JS_TS)
 
   override fun probeAvailability(
     sdkRepo: SdkManagerRepository,
@@ -278,125 +273,6 @@ class JsTsProtectionAdapter : ProtectionToolAdapter {
       detail = "Minified & validated $processed JS file(s) into staging without modifying originals.$obfNote",
       processedFiles = processed,
       generatedMappingPaths = mapArtifacts,
-    )
-  }
-}
-
-class PythonProtectionAdapter : ProtectionToolAdapter {
-  override val id = "python_protection"
-  override val displayName = "Python (PyArmor / Nuitka Check)"
-  override val supportedLanguages = setOf(LanguageFamily.PYTHON)
-  override val supportedFrameworks = setOf(DetectedFramework.PYTHON_APP)
-
-  override fun probeAvailability(
-    sdkRepo: SdkManagerRepository,
-    customToolchainPath: String,
-    projectRoot: File,
-  ): ToolAvailability {
-    val pyArmor = sdkRepo.findExecutableOnDevice("pyarmor", customToolchainPath)
-    val nuitka = sdkRepo.findExecutableOnDevice("nuitka", customToolchainPath)
-    return when {
-      pyArmor != null -> ToolAvailability(id, displayName, true, "${pyArmor.absolutePath} (Commercial/Trial license applies)")
-      nuitka != null -> ToolAvailability(id, displayName, true, "${nuitka.absolutePath} (Requires host C compiler)")
-      else ->
-        ToolAvailability(
-          id,
-          displayName,
-          isAvailable = false,
-          versionOrPath = "Unavailable",
-          reasonIfUnavailable = "Neither PyArmor (proprietary license required for commercial use) nor Nuitka (C compiler required) is executable in this Android sandbox.",
-        )
-    }
-  }
-
-  override fun execute(context: ProtectionExecutionContext, sdkRepo: SdkManagerRepository): ProtectionStepResult {
-    val probe = probeAvailability(sdkRepo, context.customToolchainPath, context.projectRoot)
-    if (!probe.isAvailable) {
-      return ProtectionStepResult(
-        toolId = id,
-        toolName = displayName,
-        targetSummary = "Python",
-        status = ToolExecutionStatus.UNAVAILABLE,
-        detail = probe.reasonIfUnavailable ?: "Python protection tool unavailable on Android.",
-      )
-    }
-    return ProtectionStepResult(
-      toolId = id,
-      toolName = displayName,
-      targetSummary = "Python",
-      status = ToolExecutionStatus.CONFIGURED_FOR_BUILD,
-      detail = "Detected ${probe.versionOrPath}. Distinction: PyArmor obfuscates bytecode; Nuitka compiles Python to native C binaries.",
-      processedFiles = context.filesByLanguage[LanguageFamily.PYTHON]?.size ?: 0,
-    )
-  }
-}
-
-class CppNativeStripAdapter : ProtectionToolAdapter {
-  override val id = "cpp_llvm_strip"
-  override val displayName = "Clang Release + llvm-strip"
-  override val supportedLanguages = setOf(LanguageFamily.CPP_NATIVE)
-  override val supportedFrameworks = setOf(DetectedFramework.NATIVE_CPP, DetectedFramework.ANDROID_GRADLE)
-
-  override fun probeAvailability(
-    sdkRepo: SdkManagerRepository,
-    customToolchainPath: String,
-    projectRoot: File,
-  ): ToolAvailability {
-    val strip = sdkRepo.findExecutableOnDevice("llvm-strip", customToolchainPath)
-      ?: sdkRepo.findExecutableOnDevice("strip", customToolchainPath)
-    val clang = sdkRepo.findExecutableOnDevice("clang", customToolchainPath)
-    return if (strip != null || clang != null) {
-      ToolAvailability(id, displayName, true, strip?.absolutePath ?: clang!!.absolutePath)
-    } else {
-      ToolAvailability(
-        id,
-        displayName,
-        isAvailable = false,
-        versionOrPath = "Unavailable",
-        reasonIfUnavailable = "clang / llvm-strip binaries not detected on device PATH or custom NDK toolchain.",
-      )
-    }
-  }
-
-  override fun execute(context: ProtectionExecutionContext, sdkRepo: SdkManagerRepository): ProtectionStepResult {
-    if (!context.config.enableNativeStrip) {
-      return ProtectionStepResult(id, displayName, "C/C++ Native", ToolExecutionStatus.SKIPPED, "Disabled in profile.")
-    }
-    val stripBin = sdkRepo.findExecutableOnDevice("llvm-strip", context.customToolchainPath)
-      ?: sdkRepo.findExecutableOnDevice("strip", context.customToolchainPath)
-    val symDir = File(context.stagingDir, "native-symbols").apply { mkdirs() }
-
-    if (stripBin == null) {
-      return ProtectionStepResult(
-        toolId = id,
-        toolName = displayName,
-        targetSummary = "C/C++ Native",
-        status = ToolExecutionStatus.UNAVAILABLE,
-        detail = "llvm-strip / strip binary unavailable in this Android sandbox; CMake release optimization (-O2 -DNDEBUG) recommended for NDK builds.",
-      )
-    }
-
-    val soFiles = context.projectRoot.walkTopDown().filter { it.isFile && it.extension == "so" }.toList()
-    val mappings = mutableListOf<Pair<MappingArtifactType, String>>()
-    var strippedCount = 0
-    for (so in soFiles) {
-      val dbgCopy = File(symDir, so.name + ".debug")
-      so.copyTo(dbgCopy, overwrite = true)
-      val proc = runCatching { ProcessBuilder(stripBin.absolutePath, "--strip-unneeded", so.absolutePath).start() }.getOrNull()
-      if (proc != null && proc.waitFor() == 0) {
-        strippedCount++
-        mappings += MappingArtifactType.NATIVE_SYMBOLS to dbgCopy.absolutePath
-      }
-    }
-
-    return ProtectionStepResult(
-      toolId = id,
-      toolName = displayName,
-      targetSummary = "C/C++ Native (.so)",
-      status = ToolExecutionStatus.APPLIED,
-      detail = "Archived unstripped symbols and ran ${stripBin.name} --strip-unneeded on $strippedCount shared library(ies).",
-      processedFiles = strippedCount,
-      generatedMappingPaths = mappings,
     )
   }
 }

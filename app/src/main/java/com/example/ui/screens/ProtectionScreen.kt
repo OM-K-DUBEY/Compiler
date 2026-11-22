@@ -177,9 +177,6 @@ fun ProtectionScreen(
         ToolToggleRow("JS External Obfuscator (javascript-obfuscator if available)", customConfig.enableJsObfuscator, isCustom) {
           customConfig = customConfig.copy(enableJsObfuscator = it)
         }
-        ToolToggleRow("C/C++ Native Debug Symbol Stripping (llvm-strip)", customConfig.enableNativeStrip, isCustom) {
-          customConfig = customConfig.copy(enableNativeStrip = it)
-        }
         ToolToggleRow("HTML / CSS / JSON Minification (not encryption)", customConfig.enableWebMinification, isCustom) {
           customConfig = customConfig.copy(enableWebMinification = it)
         }

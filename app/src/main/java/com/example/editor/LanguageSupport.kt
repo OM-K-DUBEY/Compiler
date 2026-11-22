@@ -11,11 +11,8 @@ enum class CodeLanguage(
   TYPESCRIPT("TypeScript", "//", true),
   TSX("TSX", "//", true),
   JAVASCRIPT("JavaScript", "//", true),
-  PYTHON("Python", "#", false),
   HTML("HTML", "<!--", false),
   CSS("CSS", "/*", true),
-  C("C", "//", true),
-  CPP("C++", "//", true),
   XML("XML", "<!--", false),
   JSON("JSON", "//", true),
   YAML("YAML", "#", false),
@@ -35,11 +32,8 @@ enum class CodeLanguage(
         "ts" -> TYPESCRIPT
         "tsx" -> TSX
         "js", "jsx", "mjs", "cjs" -> JAVASCRIPT
-        "py" -> PYTHON
         "html", "htm" -> HTML
         "css", "scss" -> CSS
-        "c", "h" -> C
-        "cpp", "cc", "cxx", "hpp", "hh" -> CPP
         "xml" -> XML
         "json" -> JSON
         "yaml", "yml" -> YAML

@@ -3,7 +3,7 @@ package com.example.protection
 enum class ProtectionProfileMode(val displayName: String, val summary: String) {
   NONE("None", "No code shrinking, obfuscation, or asset processing applied."),
   BASIC("Basic", "Safe identifier shrinking & whitespace/comment minification where supported."),
-  BALANCED("Balanced (Recommended Release)", "R8 shrinking/obfuscation, Flutter split debug info, native symbol stripping, and web/JSON minification."),
+  BALANCED("Balanced (Recommended Release)", "R8 shrinking/obfuscation, Flutter split debug info, and web/JSON minification."),
   STRONG("Strong (Verify Compatibility)", "Aggressive R8 optimization, resource shrinking, JS obfuscation/minification, and optional asset encryption. Not impossible to reverse engineer — test thoroughly."),
   CUSTOM("Custom", "User-selected per-language protection tools and custom ProGuard/R8 keep rules."),
 }
@@ -12,8 +12,6 @@ enum class LanguageFamily(val displayName: String) {
   JAVA_KOTLIN("Java / Kotlin"),
   DART_FLUTTER("Dart / Flutter"),
   JS_TS("JavaScript / TypeScript"),
-  PYTHON("Python"),
-  CPP_NATIVE("C / C++ Native"),
   WEB_MARKUP("HTML / CSS / JSON"),
   RESOURCES_MEDIA("XML / Images / Fonts"),
   UNKNOWN("Other"),
@@ -23,10 +21,7 @@ enum class DetectedFramework(val displayName: String) {
   ANDROID_GRADLE("Android Gradle"),
   JVM_GRADLE("JVM Gradle"),
   FLUTTER("Flutter"),
-  REACT_NATIVE("React Native"),
   WEB_JS_TS("Web / JS / TS"),
-  PYTHON_APP("Python"),
-  NATIVE_CPP("C / C++ CMake"),
 }
 
 enum class ToolExecutionStatus {
@@ -43,7 +38,6 @@ enum class MappingArtifactType(val displayName: String) {
   R8_SEEDS("R8 seeds.txt"),
   FLUTTER_SYMBOLS("Flutter Debug Symbols"),
   JS_SOURCEMAP("JavaScript Source Map"),
-  NATIVE_SYMBOLS("Native Debug Symbols"),
   ASSET_KEY_META("Asset Encryption Key Metadata"),
 }
 
@@ -53,7 +47,6 @@ data class ProtectionConfig(
   val enableFlutterObfuscate: Boolean = true,
   val enableJsMinification: Boolean = true,
   val enableJsObfuscator: Boolean = false,
-  val enableNativeStrip: Boolean = true,
   val enableWebMinification: Boolean = true,
   val enableOptInAssetEncryption: Boolean = false,
 ) {
@@ -67,7 +60,6 @@ data class ProtectionConfig(
             enableFlutterObfuscate = false,
             enableJsMinification = false,
             enableJsObfuscator = false,
-            enableNativeStrip = false,
             enableWebMinification = false,
             enableOptInAssetEncryption = false,
           )
@@ -78,7 +70,6 @@ data class ProtectionConfig(
             enableFlutterObfuscate = true,
             enableJsMinification = true,
             enableJsObfuscator = false,
-            enableNativeStrip = false,
             enableWebMinification = true,
             enableOptInAssetEncryption = false,
           )
@@ -89,7 +80,6 @@ data class ProtectionConfig(
             enableFlutterObfuscate = true,
             enableJsMinification = true,
             enableJsObfuscator = false,
-            enableNativeStrip = true,
             enableWebMinification = true,
             enableOptInAssetEncryption = false,
           )
@@ -100,7 +90,6 @@ data class ProtectionConfig(
             enableFlutterObfuscate = true,
             enableJsMinification = true,
             enableJsObfuscator = true,
-            enableNativeStrip = true,
             enableWebMinification = true,
             enableOptInAssetEncryption = true,
           )

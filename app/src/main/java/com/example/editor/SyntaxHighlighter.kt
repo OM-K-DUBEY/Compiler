@@ -41,23 +41,6 @@ object SyntaxHighlighter {
         "extends", "implements", "readonly", "undefined", "this", "super", "declare",
       )
 
-  private val pythonKeywords =
-    setOf(
-      "def", "class", "if", "elif", "else", "for", "while", "break", "continue",
-      "return", "yield", "import", "from", "as", "try", "except", "finally",
-      "raise", "with", "pass", "lambda", "and", "or", "not", "in", "is",
-      "True", "False", "None", "async", "await", "global", "nonlocal", "self",
-    )
-
-  private val cppKeywords =
-    commonKeywords +
-      setOf(
-        "int", "long", "double", "float", "char", "bool", "unsigned", "signed",
-        "struct", "union", "namespace", "using", "template", "typename", "virtual",
-        "override", "constexpr", "auto", "nullptr", "sizeof", "include", "define",
-        "pragma", "std", "inline", "extern",
-      )
-
   private val gradleKeywords =
     kotlinKeywords + setOf("plugins", "dependencies", "implementation", "testImplementation", "android", "repositories", "id", "alias")
 
@@ -68,8 +51,6 @@ object SyntaxHighlighter {
       CodeLanguage.JAVA -> commonKeywords + setOf("extends", "implements", "throws", "synchronized", "boolean", "int", "long", "double", "float", "char")
       CodeLanguage.DART -> dartKeywords
       CodeLanguage.TYPESCRIPT, CodeLanguage.TSX, CodeLanguage.JAVASCRIPT -> jsTsKeywords
-      CodeLanguage.PYTHON -> pythonKeywords
-      CodeLanguage.C, CodeLanguage.CPP -> cppKeywords
       else -> emptySet()
     }
 
@@ -105,7 +86,7 @@ object SyntaxHighlighter {
           when {
             // Line comments // or #
             (ch == '/' && i + 1 < n && text[i + 1] == '/') ||
-              (ch == '#' && (language == CodeLanguage.PYTHON || language == CodeLanguage.YAML || language == CodeLanguage.PLAIN || language == CodeLanguage.C || language == CodeLanguage.CPP)) -> {
+              (ch == '#' && (language == CodeLanguage.YAML || language == CodeLanguage.PLAIN)) -> {
               val end = text.indexOf('\n', i).let { if (it == -1) n else it }
               addStyle(SpanStyle(color = cmtColor, fontStyle = FontStyle.Italic), i, end)
               i = end

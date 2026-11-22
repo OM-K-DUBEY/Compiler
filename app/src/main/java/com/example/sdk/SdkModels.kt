@@ -7,7 +7,6 @@ enum class SdkCategory(val label: String) {
   GRADLE("Gradle"),
   FLUTTER("Flutter & Dart"),
   NODE("Node.js"),
-  NATIVE("C/C++ & NDK"),
 }
 
 data class SdkPackageSpec(
@@ -120,28 +119,6 @@ object SdkCatalog {
         approximateSizeBytes = 25L * 1024 * 1024,
         executableProbeName = "node",
         androidExecutionNote = "Standard glibc ARM64 binary; browser JS executes natively via DevForge WebView.",
-      ),
-      SdkPackageSpec(
-        id = "cmake-3.30-arm64",
-        displayName = "CMake (Linux aarch64)",
-        category = SdkCategory.NATIVE,
-        version = "3.30.5",
-        downloadUrl = "https://github.com/Kitware/CMake/releases/download/v3.30.5/cmake-3.30.5-linux-aarch64.tar.gz",
-        archiveType = "tar.gz",
-        approximateSizeBytes = 52L * 1024 * 1024,
-        executableProbeName = "cmake",
-        androidExecutionNote = "Requires glibc dynamic linker & Clang/NDK toolchain in executable environment.",
-      ),
-      SdkPackageSpec(
-        id = "android-ndk-r27c",
-        displayName = "Android NDK r27c (Linux)",
-        category = SdkCategory.NATIVE,
-        version = "27.2.12479018",
-        downloadUrl = "https://dl.google.com/android/repository/android-ndk-r27c-linux.zip",
-        archiveType = "zip",
-        approximateSizeBytes = 680L * 1024 * 1024,
-        executableProbeName = "clang",
-        androidExecutionNote = "Large desktop Linux x86_64 NDK archive; stored for inspection/export unless cross-host is attached.",
       ),
     )
 }

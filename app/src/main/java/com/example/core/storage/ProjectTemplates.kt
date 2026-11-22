@@ -10,10 +10,7 @@ enum class ProjectTemplateType(
   KOTLIN_CLI("Kotlin CLI", "Kotlin", "src/main/kotlin/Main.kt"),
   JAVA_CLI("Java CLI", "Java", "src/Main.java"),
   FLUTTER("Flutter App", "Dart", "lib/main.dart"),
-  REACT_NATIVE("React Native (TSX)", "TSX", "App.tsx"),
   WEB_APP("Web (HTML / CSS / JS)", "HTML", "index.html"),
-  PYTHON_APP("Python Script", "Python", "main.py"),
-  CPP_CMAKE("C/C++ (CMake)", "C++", "src/main.cpp"),
 }
 
 object ProjectTemplates {
@@ -280,63 +277,6 @@ object ProjectTemplates {
             """.trimIndent(),
         )
 
-      ProjectTemplateType.REACT_NATIVE ->
-        mapOf(
-          "package.json" to
-            """
-            {
-              "name": "${projectName.lowercase().replace(Regex("[^a-z0-9-]"), "-")}",
-              "version": "1.0.0",
-              "private": true,
-              "scripts": {
-                "android": "react-native run-android",
-                "start": "react-native start"
-              },
-              "dependencies": {
-                "react": "18.3.1",
-                "react-native": "0.75.4"
-              },
-              "devDependencies": {
-                "typescript": "5.5.4"
-              }
-            }
-            """.trimIndent(),
-          "tsconfig.json" to
-            """
-            {
-              "compilerOptions": {
-                "target": "esnext",
-                "module": "commonjs",
-                "jsx": "react-native",
-                "strict": true
-              }
-            }
-            """.trimIndent(),
-          "App.tsx" to
-            """
-            import React from 'react';
-            import {SafeAreaView, StyleSheet, Text, View} from 'react-native';
-
-            export default function App(): React.JSX.Element {
-              return (
-                <SafeAreaView style={styles.root}>
-                  <View style={styles.card}>
-                    <Text style={styles.title}>$projectName</Text>
-                    <Text style={styles.subtitle}>React Native TypeScript Project</Text>
-                  </View>
-                </SafeAreaView>
-              );
-            }
-
-            const styles = StyleSheet.create({
-              root: {flex: 1, backgroundColor: '#0D1117', justifyContent: 'center', padding: 20},
-              card: {padding: 16, borderRadius: 8, backgroundColor: '#161B22'},
-              title: {fontSize: 20, fontWeight: '600', color: '#E6EDF3'},
-              subtitle: {fontSize: 13, color: '#8B949E', marginTop: 6},
-            });
-            """.trimIndent(),
-        )
-
       ProjectTemplateType.WEB_APP ->
         mapOf(
           "index.html" to
@@ -401,56 +341,6 @@ object ProjectTemplates {
               if (statusEl) statusEl.textContent = msg;
               console.log(msg);
             });
-            """.trimIndent(),
-        )
-
-      ProjectTemplateType.PYTHON_APP ->
-        mapOf(
-          "main.py" to
-            """
-            def fibonacci(n: int) -> list[int]:
-                seq = [0, 1]
-                for _ in range(2, max(2, n)):
-                    seq.append(seq[-1] + seq[-2])
-                return seq[:n]
-
-            if __name__ == "__main__":
-                print("$projectName:", fibonacci(8))
-            """.trimIndent(),
-          "requirements.txt" to "# Add pure Python dependencies here\n",
-        )
-
-      ProjectTemplateType.CPP_CMAKE ->
-        mapOf(
-          "CMakeLists.txt" to
-            """
-            cmake_minimum_required(VERSION 3.22)
-            project(${projectName.replace(Regex("[^A-Za-z0-9_]"), "_")} LANGUAGES CXX)
-
-            set(CMAKE_CXX_STANDARD 17)
-            set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-            add_executable(app_bin src/main.cpp)
-            target_include_directories(app_bin PRIVATE include)
-            """.trimIndent(),
-          "include/greeter.hpp" to
-            """
-            #pragma once
-            #include <string>
-
-            inline std::string build_banner(const std::string& name) {
-                return "DevForge C++ target: " + name;
-            }
-            """.trimIndent(),
-          "src/main.cpp" to
-            """
-            #include <iostream>
-            #include "greeter.hpp"
-
-            int main() {
-                std::cout << build_banner("$projectName") << std::endl;
-                return 0;
-            }
             """.trimIndent(),
         )
     }

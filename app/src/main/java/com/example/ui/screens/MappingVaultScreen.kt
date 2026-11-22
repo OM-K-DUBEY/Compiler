@@ -68,7 +68,7 @@ fun MappingVaultScreen(
         )
         Spacer(Modifier.height(6.dp))
         Text(
-          "Private R8 mapping files, Dart debug symbols, native symbol tables, and JS source maps are encrypted at rest via AndroidKeyStore and stored strictly outside public build outputs.",
+          "Private R8 mapping files, Dart debug symbols, and JS source maps are encrypted at rest via AndroidKeyStore and stored strictly outside public build outputs.",
           style = MaterialTheme.typography.bodySmall,
           color = MaterialTheme.colorScheme.onSurfaceVariant,
         )

@@ -185,7 +185,7 @@ class BuildManager(
     for (file in files) {
       val rel = file.relativeTo(projectRoot).path.replace(File.separatorChar, '/')
       val ext = file.extension.lowercase()
-      if (ext in setOf("kt", "kts", "java", "dart", "ts", "tsx", "js", "jsx", "py", "html", "css", "c", "cpp", "h", "hpp", "xml", "json", "gradle")) {
+      if (ext in setOf("kt", "kts", "java", "dart", "ts", "tsx", "js", "jsx", "html", "css", "xml", "json", "gradle")) {
         checkedCount++
         val content = runCatching { file.readText(Charsets.UTF_8) }.getOrNull() ?: continue
         val diags = DiagnosticsEngine.analyze(rel, content)
@@ -282,9 +282,6 @@ class BuildManager(
           File(projectRoot, "gradlew").takeIf { it.exists() && it.canExecute() }
             ?: sdkManagerRepository.findExecutableOnDevice("gradle", customToolchainPath)
         BuildSystemType.FLUTTER -> sdkManagerRepository.findExecutableOnDevice("flutter", customToolchainPath)
-        BuildSystemType.REACT_NATIVE -> sdkManagerRepository.findExecutableOnDevice("npm", customToolchainPath)
-        BuildSystemType.CPP_CMAKE -> sdkManagerRepository.findExecutableOnDevice("cmake", customToolchainPath)
-        BuildSystemType.PYTHON -> sdkManagerRepository.findExecutableOnDevice("python3", customToolchainPath)
         BuildSystemType.JAVA_STANDALONE -> sdkManagerRepository.findExecutableOnDevice("javac", customToolchainPath)
         BuildSystemType.KOTLIN_STANDALONE -> sdkManagerRepository.findExecutableOnDevice("kotlinc", customToolchainPath)
         BuildSystemType.WEB_STATIC -> null
@@ -384,9 +381,6 @@ class BuildManager(
     when (type) {
       BuildSystemType.GRADLE_ANDROID, BuildSystemType.GRADLE_JVM -> "gradle"
       BuildSystemType.FLUTTER -> "flutter"
-      BuildSystemType.REACT_NATIVE -> "npm"
-      BuildSystemType.CPP_CMAKE -> "cmake"
-      BuildSystemType.PYTHON -> "python3"
       BuildSystemType.JAVA_STANDALONE -> "javac"
       BuildSystemType.KOTLIN_STANDALONE -> "kotlinc"
       BuildSystemType.WEB_STATIC -> "builtin"
@@ -412,14 +406,6 @@ class BuildManager(
           BuildVariant.RELEASE -> listOf(bin, "build", "apk", "--release", "--obfuscate", "--split-debug-info=build/flutter-symbols")
           BuildVariant.RELEASE_AAB -> listOf(bin, "build", "appbundle", "--release", "--obfuscate", "--split-debug-info=build/flutter-symbols")
         }
-      BuildSystemType.REACT_NATIVE ->
-        if (variant == BuildVariant.RELEASE_AAB) listOf(bin, "run", "android", "--", "--mode=release")
-        else listOf(bin, "run", "android")
-      BuildSystemType.CPP_CMAKE -> listOf(bin, "-S", ".", "-B", "build/cmake", "-DCMAKE_BUILD_TYPE=${if (variant == BuildVariant.DEBUG) "Debug" else "Release"}")
-      BuildSystemType.PYTHON -> {
-        val entry = File(root, "main.py").takeIf { it.exists() }?.name ?: "."
-        listOf(bin, "-m", "py_compile", entry)
-      }
       BuildSystemType.JAVA_STANDALONE -> {
         val outDir = File(root, "build/classes").apply { mkdirs() }
         val javaFiles = root.walkTopDown().filter { it.isFile && it.extension == "java" }.map { it.absolutePath }.toList()

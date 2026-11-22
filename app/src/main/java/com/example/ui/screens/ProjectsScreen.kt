@@ -182,7 +182,7 @@ fun ProjectsScreen(
           Text("No local projects", style = MaterialTheme.typography.titleMedium)
           Spacer(Modifier.height(4.dp))
           Text(
-            "Create a starter Android, Kotlin, Java, Flutter, React Native, Web, Python, or C++ workspace, or import an existing ZIP securely via Storage Access Framework.",
+            "Create a starter Android, Kotlin, Java, Flutter, or Web workspace, or import an existing ZIP securely via Storage Access Framework.",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
           )

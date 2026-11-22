@@ -55,7 +55,7 @@ class ProjectContextManager(
         allPaths.sortedBy { path ->
           when {
             path.endsWith("build.gradle.kts") || path.endsWith("build.gradle") || path == "pubspec.yaml" || path == "package.json" -> 0
-            path.endsWith("AndroidManifest.xml") || path == "CMakeLists.txt" -> 1
+            path.endsWith("AndroidManifest.xml") -> 1
             path.endsWith(".kt") || path.endsWith(".java") || path.endsWith(".dart") || path.endsWith(".tsx") || path.endsWith(".ts") -> 2
             else -> 3
           }

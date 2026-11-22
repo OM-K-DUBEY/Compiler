@@ -25,10 +25,12 @@ class EditorEnginesTest {
   @Test
   fun detectsLanguagesByExtension() {
     assertEquals(CodeLanguage.KOTLIN, CodeLanguage.fromFileName("MainActivity.kt"))
+    assertEquals(CodeLanguage.JAVA, CodeLanguage.fromFileName("MainActivity.java"))
     assertEquals(CodeLanguage.GRADLE, CodeLanguage.fromFileName("app/build.gradle.kts"))
     assertEquals(CodeLanguage.DART, CodeLanguage.fromFileName("lib/main.dart"))
     assertEquals(CodeLanguage.TSX, CodeLanguage.fromFileName("App.tsx"))
-    assertEquals(CodeLanguage.CPP, CodeLanguage.fromFileName("engine.cpp"))
+    assertEquals(CodeLanguage.PLAIN, CodeLanguage.fromFileName("engine.cpp"))
+    assertEquals(CodeLanguage.PLAIN, CodeLanguage.fromFileName("script.py"))
   }
 
   @Test

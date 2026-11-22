@@ -11,8 +11,6 @@ object FileTypeDetector {
       "kt", "kts", "java" -> LanguageFamily.JAVA_KOTLIN
       "dart" -> LanguageFamily.DART_FLUTTER
       "js", "jsx", "mjs", "cjs", "ts", "tsx" -> LanguageFamily.JS_TS
-      "py", "pyw" -> LanguageFamily.PYTHON
-      "c", "cc", "cpp", "cxx", "h", "hh", "hpp" -> LanguageFamily.CPP_NATIVE
       "html", "htm", "css", "json" -> LanguageFamily.WEB_MARKUP
       "xml", "png", "jpg", "jpeg", "webp", "svg", "ttf", "otf", "woff", "woff2" -> LanguageFamily.RESOURCES_MEDIA
       else -> LanguageFamily.UNKNOWN
@@ -51,26 +49,11 @@ object FrameworkDetector {
       found += DetectedFramework.FLUTTER
     }
 
-    val pkgJson = File(projectRoot, "package.json")
-    if (pkgJson.exists()) {
-      val text = runCatching { pkgJson.readText() }.getOrDefault("")
-      if (text.contains("react-native")) {
-        found += DetectedFramework.REACT_NATIVE
-      } else {
-        found += DetectedFramework.WEB_JS_TS
-      }
-    } else if (!filesByLanguage[LanguageFamily.JS_TS].isNullOrEmpty() || !filesByLanguage[LanguageFamily.WEB_MARKUP].isNullOrEmpty()) {
-      found += DetectedFramework.WEB_JS_TS
-    }
-
-    if (File(projectRoot, "CMakeLists.txt").exists() || !filesByLanguage[LanguageFamily.CPP_NATIVE].isNullOrEmpty()) {
-      found += DetectedFramework.NATIVE_CPP
-    }
-
-    if (File(projectRoot, "requirements.txt").exists() || File(projectRoot, "pyproject.toml").exists() ||
-      !filesByLanguage[LanguageFamily.PYTHON].isNullOrEmpty()
+    if (File(projectRoot, "package.json").exists() ||
+      !filesByLanguage[LanguageFamily.JS_TS].isNullOrEmpty() ||
+      !filesByLanguage[LanguageFamily.WEB_MARKUP].isNullOrEmpty()
     ) {
-      found += DetectedFramework.PYTHON_APP
+      found += DetectedFramework.WEB_JS_TS
     }
 
     return found
