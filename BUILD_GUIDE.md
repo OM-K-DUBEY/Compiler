@@ -32,5 +32,6 @@
 - Note: Use `gradle` directly in this environment; `./gradlew` is not supported.
 
 ## 4. On-Device Compilation & Native Toolchains on Android
-- **Built-in on-device support**: Web static packaging (`HTML`/`CSS`/`JS`), Android `WebView` live runtime preview, `/system/bin/sh` interactive shell, static syntax/manifest validation across all languages, JS/Web minification, AES-256-GCM encryption/vaulting, and archive leak checks.
-- **External CLI toolchains (`gradle`, `flutter`, `npm`, `cmake`, `javac`, `kotlinc`, `llvm-strip`, `pyarmor`, `nuitka`)**: Standard unrooted Android 10+ enforces SELinux `W^X` (`noexec` on app-private storage). DevForge AI probes `PATH` and the user-configured Custom Toolchain Path (e.g., Termux/chroot) and reports `UNAVAILABLE` honestly when no executable binary is present.
+- **Built-in on-device support**: Web static packaging (`HTML`/`CSS`/`JS`), Android `WebView` live runtime preview with reload & console clear, `/system/bin/sh` interactive shell, static syntax/manifest validation across `Java`/`Kotlin`/`Dart`/`Web`, JS/Web minification, AES-256-GCM encryption/vaulting, and archive leak checks.
+- **External CLI toolchains (`gradle`, `flutter`, `javac`, `kotlinc`)**: Standard unrooted Android 10+ enforces SELinux `W^X` (`noexec` on app-private storage). DevForge AI probes `PATH` and the user-configured Custom Toolchain Path (e.g., Termux/chroot) and reports `UNAVAILABLE` honestly when no executable binary is present.
+- **Removed toolchains**: C, C++ (CMake/NDK), Python (PyArmor/Nuitka), React Native, and Local/Offline AI (GGUF/llama.cpp) are not bundled or supported.

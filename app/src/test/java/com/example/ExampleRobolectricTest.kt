@@ -89,6 +89,42 @@ class ExampleRobolectricTest {
     composeRule.onNodeWithTag("topbar_settings_btn").performClick()
     composeRule.waitForIdle()
     composeRule.onNodeWithTag("settings_dark_theme_switch").assertIsDisplayed()
+    // Toggle Light & Dark Theme cleanly
+    composeRule.onNodeWithTag("settings_dark_theme_switch").performClick()
+    composeRule.waitForIdle()
+    composeRule.onNodeWithTag("settings_dark_theme_switch").performClick()
+    composeRule.waitForIdle()
+  }
+
+  @Test
+  fun importWizardExcludesRemovedLanguagesAndEditorOpensProject() {
+    composeRule.waitForIdle()
+    navigateViaDrawer("drawer_project_import")
+
+    composeRule.onNodeWithTag("import_template_name_input").performScrollTo()
+    composeRule.waitForIdle()
+
+    // Verify retained frameworks exist and removed ones do not
+    composeRule.onAllNodesWithText("Android (Kotlin + Compose)", substring = true).onFirst().performScrollTo().assertIsDisplayed()
+    composeRule.onAllNodesWithText("Web (HTML / CSS / JS)", substring = true).onFirst().performScrollTo().assertIsDisplayed()
+    assertEquals(0, composeRule.onAllNodesWithText("Python", substring = true).fetchSemanticsNodes().size)
+    assertEquals(0, composeRule.onAllNodesWithText("C++", substring = true).fetchSemanticsNodes().size)
+    assertEquals(0, composeRule.onAllNodesWithText("React Native", substring = true).fetchSemanticsNodes().size)
+
+    // Create starter project and open editor
+    composeRule.onNodeWithTag("import_template_name_input").performScrollTo()
+    composeRule.onNodeWithTag("import_template_name_input").performTextClearance()
+    composeRule.onNodeWithTag("import_template_name_input").performTextInput("EditorVerifyApp")
+    composeRule.onNodeWithTag("import_create_template_btn").performScrollTo().performClick()
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithText("EditorVerifyApp", substring = true).fetchSemanticsNodes().isNotEmpty()
+    }
+
+    composeRule.onNodeWithTag("nav_editor").performClick()
+    composeRule.waitUntil(timeoutMillis = 5_000) {
+      composeRule.onAllNodesWithText("MainActivity.kt", substring = true).fetchSemanticsNodes().isNotEmpty()
+    }
+    composeRule.onNodeWithTag("code_editor_field").assertIsDisplayed()
   }
 
   private fun navigateViaDrawer(drawerItemTag: String) {

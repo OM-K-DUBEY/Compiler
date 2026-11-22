@@ -5,7 +5,7 @@
 - **Encrypted Credentials**:
   - AI provider API keys (`ai_providers.encryptedApiKey`) and legacy preferences are encrypted before persistence in Room / DataStore.
   - MCP bearer/custom auth tokens (`mcp_servers.encryptedToken`) are encrypted at rest.
-  - R8 mappings, Flutter symbol archives, JS source maps, and native debug symbols archived in `SymbolAndMappingVault` are AES-256-GCM encrypted in `filesDir/mapping_vault/*.vault.enc`.
+  - R8 mappings, Flutter symbol archives, and JS source maps archived in `SymbolAndMappingVault` are AES-256-GCM encrypted in `filesDir/mapping_vault/*.vault.enc`.
 - **Opt-In Asset Encryption (`OptInAssetCrypto`)**: Uses AES-256-GCM (`AES/GCM/NoPadding`, random 96-bit IV, 128-bit auth tag) and generates a paired `DevForgeAssetDecryptor.kt` helper. Never describes HTML/CSS/JSON minification as encryption.
 
 ## 2. Transport & Endpoint Security

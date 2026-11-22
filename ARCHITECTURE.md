@@ -26,5 +26,5 @@ DevForge AI follows a clean **MVVM + Repository** architecture using **Kotlin**,
 | Local `STDIO` MCP Servers | Spawning arbitrary host binaries unsupported | Explicitly marked `UNSUPPORTED` with clear explanation |
 | Web (HTML/CSS/JS) Build & Protection | Full native bundling, `WebView` runtime & JS/Web minifier | Produces verified clean ZIP bundles + live `WebView` preview |
 | Android R8 / ProGuard | Rules generation native; execution requires Gradle/JDK | Generates merged `.pro` rules & vaults mappings; reports `UNAVAILABLE` if `gradle` absent |
-| Flutter / CMake / Python Protection | External native binaries (`flutter`, `cmake`, `llvm-strip`, `pyarmor`, `nuitka`) | Probes `PATH` & custom toolchain; marks `UNAVAILABLE` unless binary exists |
+| Flutter / External Gradle Toolchains | External native binaries (`flutter`, `gradle`, `javac`, `kotlinc`) | Probes `PATH` & custom toolchain; marks `UNAVAILABLE` unless binary exists |
 | Shell (`/system/bin/sh`) | Native OS shell | Real command execution, env, cwd, cancellation |

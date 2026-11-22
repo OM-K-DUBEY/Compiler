@@ -62,30 +62,35 @@ This document reports verified status for every subsystem in **DevForge AI** usi
 - **Status**: `IMPLEMENTED AND TESTED`
 - **Implementation location**: `app/src/main/java/com/example/protection/*`, `app/src/main/java/com/example/ui/screens/ProtectionScreen.kt`, `app/src/main/java/com/example/ui/screens/MappingVaultScreen.kt`
 - **Required dependency**: Room (`protection_profiles`, `mapping_vault`, `build_protection_reports`), `SecretCipher`, `OptInAssetCrypto`
-- **Test performed**: `ProtectionAndBuildTest` (framework detection, R8 keep-rule merging + encrypted `mapping.txt` vaulting, JS string-literal-safe minification + source preservation, Web minification, AES-256-GCM asset encrypt/decrypt round-trip, leak detection on `.zip` archives containing `mapping.txt`/`.jks`)
+- **Test performed**: `ProtectionAndBuildTest` (framework detection for Java/Kotlin/Android/Flutter/Web, R8 keep-rule merging + encrypted `mapping.txt` vaulting, JS string-literal-safe minification + source preservation, Web minification, AES-256-GCM asset encrypt/decrypt round-trip, leak detection on `.zip` archives containing `mapping.txt`/`.jks`)
 - **Test result**: Passed (6/6 tests in `ProtectionAndBuildTest`)
 - **Known limitation**: Strong protection is not impossible to reverse engineer; R8 bytecode obfuscation does NOT protect XML/JSON/images/Dart assets; HTML/CSS/JSON minification is size reduction, not encryption.
 
-## 8. External Native Obfuscation & Native Compilation Toolchains (`gradle`, `flutter`, `cmake`, `llvm-strip`, `pyarmor`, `nuitka`)
+## 8. External Compilation Toolchains (`gradle`, `flutter`, `javac`, `kotlinc`)
 - **Status**: `UNSUPPORTED ON ANDROID`
 - **Implementation location**: `app/src/main/java/com/example/compiler/BuildManager.kt`, `app/src/main/java/com/example/protection/ProtectionToolAdapters.kt`
-- **Required dependency**: Host executable `gradle`/`flutter`/`npm`/`cmake`/`llvm-strip`/`pyarmor`/`nuitka` binaries on `PATH` or custom Termux/chroot toolchain path
-- **Test performed**: `CompilerAndTerminalTest.unavailableNativeToolchainIsReportedHonestly`, `ProtectionAndBuildTest.optInAssetEncryptionRoundTripAndPythonCppFlutterHonestChecks`
+- **Required dependency**: Host executable `gradle`/`flutter`/`javac`/`kotlinc` binaries on `PATH` or custom Termux/chroot toolchain path
+- **Test performed**: `CompilerAndTerminalTest.unavailableNativeToolchainIsReportedHonestly`, `ProtectionAndBuildTest.optInAssetEncryptionRoundTripAndFlutterHonestChecks`
 - **Test result**: Passed (reports `BuildStatus.UNAVAILABLE` / `ToolExecutionStatus.UNAVAILABLE` honestly without fake success)
-- **Known limitation**: Requires desktop/CI export or an external executable toolchain path configured in Settings; commercial/trial licensing applies to external tools like PyArmor.
+- **Known limitation**: Requires desktop/CI export or an external executable toolchain path configured in Settings.
 
 ## 9. Build Manager (Web Bundling, AAB Variant, Error Diagnostics, WorkManager, Terminal, Editor, ZIP Security)
 - **Status**: `IMPLEMENTED AND TESTED`
 - **Implementation location**: `app/src/main/java/com/example/compiler/*`, `app/src/main/java/com/example/terminal/*`, `app/src/main/java/com/example/editor/*`, `app/src/main/java/com/example/core/storage/*`
 - **Required dependency**: AndroidX WorkManager, Room, `ZipOutputStream` / `ZipInputStream`, `/system/bin/sh`
-- **Test performed**: `CompilerAndTerminalTest` (5/5), `EditorEnginesTest` (5/5), `SecurityAndZipTest` (7/7), `ProtectionAndBuildTest.buildErrorClassifierCoversAllCategories`
-- **Test result**: Passed
+- **Test performed**: `CompilerAndTerminalTest` (5/5), `EditorEnginesTest` (5/5), `SecurityAndZipTest` (7/7), `ProtectionAndBuildTest.buildErrorClassifierCoversAllCategories`, `ExampleRobolectricTest` (3/3)
+- **Test result**: Passed (`gradle :app:testDebugUnitTest --console=plain`)
 - **Known limitation**: `BuildWorker` WorkManager background execution relies on system WorkManager scheduling and was verified at compilation/wiring level rather than across process death in Robolectric.
 
 ## 10. Release APK / Release AAB Signing
 - **Status**: `BLOCKED BY MISSING DEPENDENCY`
 - **Implementation location**: `app/build.gradle.kts` (`signingConfigs.release`), `app/src/main/java/com/example/core/security/KeystoreSigningManager.kt`
 - **Required dependency**: Upload keystore (`KEYSTORE_PATH`) and signing credentials (`STORE_PASSWORD`, `KEY_PASSWORD`) in environment
-- **Test performed**: Checked environment (`STORE_PASSWORD` unset) and verified Debug APK signing via `gradle :app:assembleDebug` (`debugConfig`)
+- **Test performed**: Checked environment (`STORE_PASSWORD` / `KEY_PASSWORD` / `KEYSTORE_PATH` unset) and verified Debug APK signing via `gradle :app:assembleDebug` (`debugConfig`)
 - **Test result**: Debug APK build & signing succeeded; signed `assembleRelease` / `bundleRelease` requires user-supplied release keystore credentials
 - **Known limitation**: Release upload keystore secrets are intentionally not stored in the repository.
+
+## 11. Removed Integrations (`C`, `C++`, `CMake`, `NDK`, `Python`, `PyArmor`, `Nuitka`, `React Native`, `Local/Offline AI`)
+- **Status**: `REMOVED`
+- **Scope removed**: All C/C++/CMake/NDK templates, syntax/diagnostic rules, SDK packages (`cmake-3.30-arm64`, `android-ndk-r27c`), and `CppNativeStripAdapter`; all Python templates, detection, syntax/diagnostics, build targets, and `PythonProtectionAdapter` (`PyArmor`/`Nuitka`); incomplete `REACT_NATIVE` project detection/templates; and all local/offline GGUF/`llama.cpp` AI components.
+- **Verification**: Verified via repository-wide grep and automated unit + Robolectric UI tests (`ExampleRobolectricTest`, `CompilerAndTerminalTest`, `EditorEnginesTest`, `ProtectionAndBuildTest`).
